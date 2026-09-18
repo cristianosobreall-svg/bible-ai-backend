@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: bible-ai-backend
+    runtime: node
+    plan: free
+    buildCommand: ""
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: OPENAI_API_KEY
+        sync: false
