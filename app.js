@@ -1,3 +1,9 @@
+import { readFileSync } from "node:fs";
+
+const bible = JSON.parse(
+  readFileSync(new URL("./web.json", import.meta.url), "utf8")
+);
+
 const page = `<!doctype html>
 <html lang="en">
 <head>
@@ -273,7 +279,7 @@ Find passage
 </div>
 
 <footer>
-World English Bible passages. AI answers may contain mistakes—always check the cited Scripture.
+Scripture text: World English Bible (WEB)—Public Domain. AI answers may contain mistakes—always check the cited Scripture.
 </footer>
 
 </main>
@@ -386,8 +392,16 @@ askButton.addEventListener("click", async function(){
 
     console.error(error);
 
-    result.innerHTML =
-      '<div class="error">The AI could not answer right now. Please try again.</div>';
+    result.innerHTML = "";
+
+    var errorBox = document.createElement("div");
+    errorBox.className = "error";
+    errorBox.textContent =
+      error.message === "AI key is not configured"
+        ? "The AI connection is not configured yet."
+        : "The AI could not answer right now. Please try again.";
+
+    result.appendChild(errorBox);
 
   }
   finally{
@@ -611,11 +625,11 @@ function cleanReferences(text){
 
   const candidates =
     String(text)
-      .replace(/[\\[\\]"']/g,"")
-      .split(/[,;\\n]+/)
+      .replace(/[\[\]"']/g,"")
+      .split(/[,;\n]+/)
       .map(function(s){
         return s
-          .replace(/^[-*\\d.\\s]+/,"")
+          .replace(/^\s*(?:[-*]\s*|\d+[.)]\s*)/,"")
           .trim();
       })
       .filter(Boolean);
@@ -624,7 +638,7 @@ function cleanReferences(text){
     ...new Set(
       candidates.filter(function(s){
 
-        return /^[1-3]?\\s?[A-Za-z]+(?:\\s+[A-Za-z]+)*\\s+\\d{1,3}:\\d{1,3}(?:-\\d{1,3})?$/.test(s);
+        return /^[1-3]?\s?[A-Za-z]+(?:\s+[A-Za-z]+)*\s+\d{1,3}:\d{1,3}(?:-\d{1,3})?$/.test(s);
 
       })
     )
@@ -633,37 +647,126 @@ function cleanReferences(text){
 }
 
 
+const bookAliases = new Map();
+
+function normalizeBookName(name){
+
+  return String(name)
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g,"");
+
+}
+
+for(const name of Object.keys(bible.books)){
+
+  bookAliases.set(normalizeBookName(name),name);
+
+}
+
+const extraBookAliases = {
+  gen:"Genesis", exo:"Exodus", ex:"Exodus", lev:"Leviticus",
+  num:"Numbers", deut:"Deuteronomy", dt:"Deuteronomy", josh:"Joshua",
+  judg:"Judges", ruth:"Ruth", "1sam":"1 Samuel", "2sam":"2 Samuel",
+  "1kgs":"1 Kings", "2kgs":"2 Kings", "1chr":"1 Chronicles",
+  "2chr":"2 Chronicles", neh:"Nehemiah", esth:"Esther", ps:"Psalms",
+  psa:"Psalms", psalm:"Psalms", prov:"Proverbs", eccl:"Ecclesiastes",
+  ecc:"Ecclesiastes", song:"Song of Solomon", songs:"Song of Solomon",
+  sos:"Song of Solomon", isa:"Isaiah", jer:"Jeremiah", lam:"Lamentations",
+  ezek:"Ezekiel", ezk:"Ezekiel", dan:"Daniel", hos:"Hosea", obad:"Obadiah",
+  jon:"Jonah", mic:"Micah", nah:"Nahum", hab:"Habakkuk", zeph:"Zephaniah",
+  hag:"Haggai", zech:"Zechariah", mal:"Malachi", matt:"Matthew",
+  mk:"Mark", mrk:"Mark", lk:"Luke", jn:"John", joh:"John", act:"Acts",
+  rom:"Romans", "1cor":"1 Corinthians", "2cor":"2 Corinthians",
+  gal:"Galatians", eph:"Ephesians", phil:"Philippians", col:"Colossians",
+  "1thess":"1 Thessalonians", "2thess":"2 Thessalonians",
+  "1tim":"1 Timothy", "2tim":"2 Timothy", tit:"Titus", philem:"Philemon",
+  heb:"Hebrews", jas:"James", "1pet":"1 Peter", "2pet":"2 Peter",
+  "1jn":"1 John", "2jn":"2 John", "3jn":"3 John", rev:"Revelation"
+};
+
+for(const [alias,name] of Object.entries(extraBookAliases)){
+
+  bookAliases.set(alias,name);
+
+}
+
 async function getPassage(reference){
 
-  const url =
-    "https://bible-api.com/" +
-    encodeURIComponent(reference) +
-    "?translation=web";
+  const match = String(reference)
+    .trim()
+    .match(/^((?:[1-3]\s*)?[A-Za-z]+(?:\s+[A-Za-z]+)*)\s+(\d{1,3})(?::(\d{1,3})(?:\s*[-–]\s*(\d{1,3}))?)?$/);
 
-  const response =
-    await fetch(
-      url,
-      {
-        headers:{
-          "accept":"application/json"
-        }
-      }
-    );
-
-  if(!response.ok){
+  if(!match){
 
     throw new Error("Passage not found");
 
   }
 
-  const data = await response.json();
+  const bookName = bookAliases.get(normalizeBookName(match[1]));
+  const chapterNumber = Number(match[2]);
+  const startVerse = match[3] ? Number(match[3]) : null;
+  const endVerse = match[4] ? Number(match[4]) : startVerse;
+  const chapter = bookName && bible.books[bookName]?.[chapterNumber];
+
+  if(!chapter){
+
+    throw new Error("Passage not found");
+
+  }
+
+  const first = startVerse || 1;
+  const last = endVerse || chapter.length - 1;
+
+  if(
+    first < 1 ||
+    last < first ||
+    last >= chapter.length ||
+    (startVerse !== null && last - first > 49)
+  ){
+
+    throw new Error("Passage not found");
+
+  }
+
+  const includeVerseNumbers = first !== last;
+  const lines = [];
+
+  for(let verseNumber=first; verseNumber<=last; verseNumber++){
+
+    const verse = chapter[verseNumber];
+
+    if(!verse){
+
+      if(first === last){
+
+        throw new Error("Passage not found");
+
+      }
+
+      continue;
+
+    }
+
+    lines.push(
+      includeVerseNumbers
+        ? verseNumber + " " + verse
+        : verse
+    );
+
+  }
+
+  const normalizedReference =
+    bookName +
+    " " +
+    chapterNumber +
+    (startVerse
+      ? ":" + startVerse + (last !== first ? "-" + last : "")
+      : "");
 
   return {
-    reference:data.reference || reference,
-    text:String(data.text || "").trim(),
-    translation:
-      data.translation_name ||
-      "World English Bible"
+    reference:normalizedReference,
+    text:lines.join("\n"),
+    translation:bible.translation
   };
 
 }
@@ -732,14 +835,16 @@ async function handleAsk(request,env){
     await callOpenAI(
       env.OPENAI_API_KEY,
       {
-        model:"gpt-5.4-mini",
+        model:env.OPENAI_MODEL || "gpt-5-mini",
+
+        reasoning:{effort:"low"},
 
         instructions:
           "Select accurate Bible passages. Never invent Bible references. Return only comma-separated Bible references.",
 
         input:refPrompt,
 
-        max_output_tokens:160
+        max_output_tokens:400
       }
     );
 
@@ -809,7 +914,9 @@ async function handleAsk(request,env){
     await callOpenAI(
       env.OPENAI_API_KEY,
       {
-        model:"gpt-5.4-mini",
+        model:env.OPENAI_MODEL || "gpt-5-mini",
+
+        reasoning:{effort:"low"},
 
         instructions:
           "You are a careful Bible study assistant. " +
@@ -822,7 +929,7 @@ async function handleAsk(request,env){
           "\\n\\nBible passages:\\n" +
           context,
 
-        max_output_tokens:700
+        max_output_tokens:1400
       }
     );
 
@@ -832,7 +939,7 @@ async function handleAsk(request,env){
     references:passages.map(function(p){
       return p.reference;
     }),
-    translation:"World English Bible"
+    translation:bible.translation
   });
 
 }
@@ -874,6 +981,8 @@ export default {
 
         return json({
           ok:true,
+          bibleLoaded:true,
+          bibleBooks:Object.keys(bible.books).length,
           aiConfigured:
             Boolean(env.OPENAI_API_KEY)
         });
