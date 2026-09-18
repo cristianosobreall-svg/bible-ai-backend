@@ -3,21 +3,24 @@
 A bilingual English/Spanish Bible study app that:
 
 - answers Bible questions with cited Scripture;
-- includes the complete 66-book World English Bible text;
+- includes complete 66-book public-domain Bible texts in English and Spanish;
 - looks up exact passages without depending on an outside Bible API;
 - supports answers in English and Spanish.
 
 ## Bible text and license
 
-The Scripture text is the **World English Bible (WEB)**. The WEB is in the
-public domain and may be copied, published, and distributed without royalties.
-The translation name is used only to identify a faithful copy of the WEB text.
+The English Scripture text is the **World English Bible (WEB)** and the Spanish
+text is the **Reina-Valera 1909 (RV1909)**. Both are public domain. Translation
+names are used only to identify faithful copies of the source texts.
 
 The bundled `web.json` data was generated from `eng-web.usfx.xml` in the
 [`seven1m/open-bibles`](https://github.com/seven1m/open-bibles) repository at
-commit `f257a3559025c3f873b48a75019f53a9354ed7de`. The source repository identifies
-this translation as public domain. The authoritative WEB site also states that
-the translation is public domain: <https://worldenglish.bible/>.
+commit `f257a3559025c3f873b48a75019f53a9354ed7de`. The bundled `rv1909.json` was
+generated from `spa-rv1909.usfx.xml` at that same commit. The source repository
+identifies both translations as public domain. The authoritative WEB site also
+states that the WEB is public domain: <https://worldenglish.bible/>. eBible.org
+identifies the RV1909 edition as Dominio Público:
+<https://ebible.org/details.php?id=spaRV1909>.
 
 Do not replace this data with text from a copyrighted translation unless you
 first obtain the necessary license.

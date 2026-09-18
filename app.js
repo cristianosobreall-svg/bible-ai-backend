@@ -1,8 +1,13 @@
 import { readFileSync } from "node:fs";
 
-const bible = JSON.parse(
-  readFileSync(new URL("./web.json", import.meta.url), "utf8")
-);
+const bibles = {
+  en:JSON.parse(
+    readFileSync(new URL("./web.json", import.meta.url), "utf8")
+  ),
+  es:JSON.parse(
+    readFileSync(new URL("./rv1909.json", import.meta.url), "utf8")
+  )
+};
 
 const page = `<!doctype html>
 <html lang="en">
@@ -278,8 +283,8 @@ Find passage
 
 </div>
 
-<footer>
-Scripture text: World English Bible (WEB)—Public Domain. AI answers may contain mistakes—always check the cited Scripture.
+<footer id="footerText">
+Scripture texts: World English Bible (WEB) and Reina-Valera 1909 (RV1909)—Public Domain. AI answers may contain mistakes—always check the cited Scripture.
 </footer>
 
 </main>
@@ -301,6 +306,7 @@ var verseButton = document.getElementById("verseButton");
 var passageResult = document.getElementById("passage-result");
 
 var language = document.getElementById("language");
+var footerText = document.getElementById("footerText");
 
 
 askTab.addEventListener("click", function(){
@@ -436,7 +442,10 @@ verseButton.addEventListener("click", async function(){
   try{
 
     var response =
-      await fetch("/api/passage?reference=" + encodeURIComponent(text));
+      await fetch(
+        "/api/passage?reference=" + encodeURIComponent(text) +
+        "&language=" + encodeURIComponent(language.value)
+      );
 
     var data = await response.json();
 
@@ -504,8 +513,17 @@ language.addEventListener("change", function(){
     document.getElementById("referenceLabel").textContent =
       "Escribe una referencia bíblica";
 
+    question.placeholder =
+      "¿Qué dice la Biblia sobre el temor?";
+
+    reference.placeholder =
+      "Juan 3:16";
+
     verseButton.textContent =
       "Buscar pasaje";
+
+    footerText.textContent =
+      "Texto bíblico: Reina-Valera 1909 (RV1909)—Dominio Público. Las respuestas de IA pueden contener errores; comprueba siempre las Escrituras citadas.";
 
   }
   else{
@@ -528,8 +546,17 @@ language.addEventListener("change", function(){
     document.getElementById("referenceLabel").textContent =
       "Enter a Bible reference";
 
+    question.placeholder =
+      "What does the Bible say about fear?";
+
+    reference.placeholder =
+      "John 3:16";
+
     verseButton.textContent =
       "Find passage";
+
+    footerText.textContent =
+      "Scripture texts: World English Bible (WEB) and Reina-Valera 1909 (RV1909)—Public Domain. AI answers may contain mistakes—always check the cited Scripture.";
 
   }
 
@@ -649,17 +676,48 @@ function cleanReferences(text){
 
 const bookAliases = new Map();
 
+const spanishBookNames = {
+  Genesis:"Génesis", Exodus:"Éxodo", Leviticus:"Levítico", Numbers:"Números",
+  Deuteronomy:"Deuteronomio", Joshua:"Josué", Judges:"Jueces", Ruth:"Rut",
+  "1 Samuel":"1 Samuel", "2 Samuel":"2 Samuel", "1 Kings":"1 Reyes",
+  "2 Kings":"2 Reyes", "1 Chronicles":"1 Crónicas", "2 Chronicles":"2 Crónicas",
+  Ezra:"Esdras", Nehemiah:"Nehemías", Esther:"Ester", Job:"Job",
+  Psalms:"Salmos", Proverbs:"Proverbios", Ecclesiastes:"Eclesiastés",
+  "Song of Solomon":"Cantares", Isaiah:"Isaías", Jeremiah:"Jeremías",
+  Lamentations:"Lamentaciones", Ezekiel:"Ezequiel", Daniel:"Daniel",
+  Hosea:"Oseas", Joel:"Joel", Amos:"Amós", Obadiah:"Abdías", Jonah:"Jonás",
+  Micah:"Miqueas", Nahum:"Nahúm", Habakkuk:"Habacuc", Zephaniah:"Sofonías",
+  Haggai:"Hageo", Zechariah:"Zacarías", Malachi:"Malaquías", Matthew:"Mateo",
+  Mark:"Marcos", Luke:"Lucas", John:"Juan", Acts:"Hechos", Romans:"Romanos",
+  "1 Corinthians":"1 Corintios", "2 Corinthians":"2 Corintios",
+  Galatians:"Gálatas", Ephesians:"Efesios", Philippians:"Filipenses",
+  Colossians:"Colosenses", "1 Thessalonians":"1 Tesalonicenses",
+  "2 Thessalonians":"2 Tesalonicenses", "1 Timothy":"1 Timoteo",
+  "2 Timothy":"2 Timoteo", Titus:"Tito", Philemon:"Filemón", Hebrews:"Hebreos",
+  James:"Santiago", "1 Peter":"1 Pedro", "2 Peter":"2 Pedro",
+  "1 John":"1 Juan", "2 John":"2 Juan", "3 John":"3 Juan",
+  Jude:"Judas", Revelation:"Apocalipsis"
+};
+
 function normalizeBookName(name){
 
   return String(name)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g,"")
     .toLowerCase()
     .replace(/[^a-z0-9]/g,"");
 
 }
 
-for(const name of Object.keys(bible.books)){
+for(const name of Object.keys(bibles.en.books)){
 
   bookAliases.set(normalizeBookName(name),name);
+
+}
+
+for(const [englishName,spanishName] of Object.entries(spanishBookNames)){
+
+  bookAliases.set(normalizeBookName(spanishName),englishName);
 
 }
 
@@ -681,7 +739,20 @@ const extraBookAliases = {
   "1thess":"1 Thessalonians", "2thess":"2 Thessalonians",
   "1tim":"1 Timothy", "2tim":"2 Timothy", tit:"Titus", philem:"Philemon",
   heb:"Hebrews", jas:"James", "1pet":"1 Peter", "2pet":"2 Peter",
-  "1jn":"1 John", "2jn":"2 John", "3jn":"3 John", rev:"Revelation"
+  "1jn":"1 John", "2jn":"2 John", "3jn":"3 John", rev:"Revelation",
+  gn:"Genesis", ex:"Exodus", lv:"Leviticus", nm:"Numbers", dt:"Deuteronomy",
+  jos:"Joshua", jue:"Judges", "1re":"1 Kings", "2re":"2 Kings",
+  "1cr":"1 Chronicles", "2cr":"2 Chronicles", esd:"Ezra", ne:"Nehemiah",
+  sal:"Psalms", salmo:"Psalms", pr:"Proverbs", ec:"Ecclesiastes",
+  cantares:"Song of Solomon", cantardeloscantares:"Song of Solomon",
+  is:"Isaiah", jr:"Jeremiah", lm:"Lamentations", ez:"Ezekiel",
+  os:"Hosea", abd:"Obadiah", jonas:"Jonah", mi:"Micah", sof:"Zephaniah",
+  zac:"Zechariah", mt:"Matthew", mc:"Mark", lc:"Luke", juan:"John",
+  hch:"Acts", ro:"Romans", "1co":"1 Corinthians", "2co":"2 Corinthians",
+  ga:"Galatians", ef:"Ephesians", fil:"Philippians", "1ts":"1 Thessalonians",
+  "2ts":"2 Thessalonians", "1ti":"1 Timothy", "2ti":"2 Timothy",
+  flm:"Philemon", stg:"James", "1pe":"1 Peter", "2pe":"2 Peter",
+  "1ju":"1 John", "2ju":"2 John", "3ju":"3 John", ap:"Revelation"
 };
 
 for(const [alias,name] of Object.entries(extraBookAliases)){
@@ -690,11 +761,14 @@ for(const [alias,name] of Object.entries(extraBookAliases)){
 
 }
 
-async function getPassage(reference){
+async function getPassage(reference,language="en"){
+
+  const selectedLanguage = language === "es" ? "es" : "en";
+  const bible = bibles[selectedLanguage];
 
   const match = String(reference)
     .trim()
-    .match(/^((?:[1-3]\s*)?[A-Za-z]+(?:\s+[A-Za-z]+)*)\s+(\d{1,3})(?::(\d{1,3})(?:\s*[-–]\s*(\d{1,3}))?)?$/);
+    .match(/^((?:[1-3]\s*)?[\p{L}]+(?:\s+[\p{L}]+)*)\s+(\d{1,3})(?::(\d{1,3})(?:\s*[-–]\s*(\d{1,3}))?)?$/u);
 
   if(!match){
 
@@ -755,8 +829,13 @@ async function getPassage(reference){
 
   }
 
+  const displayBookName =
+    selectedLanguage === "es"
+      ? spanishBookNames[bookName]
+      : bookName;
+
   const normalizedReference =
-    bookName +
+    displayBookName +
     " " +
     chapterNumber +
     (startVerse
@@ -866,7 +945,9 @@ async function handleAsk(request,env){
 
   const settled =
     await Promise.allSettled(
-      references.map(getPassage)
+      references.map(function(reference){
+        return getPassage(reference,language);
+      })
     );
 
 
@@ -939,7 +1020,7 @@ async function handleAsk(request,env){
     references:passages.map(function(p){
       return p.reference;
     }),
-    translation:bible.translation
+    translation:bibles[language].translation
   });
 
 }
@@ -982,7 +1063,9 @@ export default {
         return json({
           ok:true,
           bibleLoaded:true,
-          bibleBooks:Object.keys(bible.books).length,
+          bibleBooks:Object.keys(bibles.en.books).length,
+          spanishBibleLoaded:true,
+          spanishBibleBooks:Object.keys(bibles.es.books).length,
           aiConfigured:
             Boolean(env.OPENAI_API_KEY)
         });
@@ -1013,7 +1096,10 @@ export default {
         }
 
         return json(
-          await getPassage(reference)
+          await getPassage(
+            reference,
+            url.searchParams.get("language")
+          )
         );
 
       }

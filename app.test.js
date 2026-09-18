@@ -16,6 +16,8 @@ test("health reports the complete local Bible",async function(){
   assert.equal(data.ok,true);
   assert.equal(data.bibleLoaded,true);
   assert.equal(data.bibleBooks,66);
+  assert.equal(data.spanishBibleLoaded,true);
+  assert.equal(data.spanishBibleBooks,66);
   assert.equal(data.aiConfigured,false);
 });
 
@@ -28,6 +30,19 @@ test("looks up an exact WEB verse locally",async function(){
   assert.equal(data.reference,"John 3:16");
   assert.match(data.text,/For God so loved the world/);
   assert.equal(data.translation,"World English Bible (WEB)");
+});
+
+
+test("looks up an exact RV1909 verse in Spanish",async function(){
+  const response = await request(
+    "/api/passage?reference=Juan%203%3A16&language=es"
+  );
+  const data = await response.json();
+
+  assert.equal(response.status,200);
+  assert.equal(data.reference,"Juan 3:16");
+  assert.match(data.text,/Porque de tal manera amó Dios al mundo/);
+  assert.equal(data.translation,"Reina-Valera 1909 (RV1909)");
 });
 
 

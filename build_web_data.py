@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Convert the public-domain WEB USFX file into compact app JSON."""
+"""Convert a public-domain USFX Bible file into compact app JSON."""
 
 import json
 import sys
@@ -43,6 +43,7 @@ def parse_book(book):
 
         if tag == "c":
             state["chapter"] = int(node.attrib["id"])
+            state["verse"] = None
             chapters.setdefault(state["chapter"], {})
         elif tag == "v":
             state["verse"] = int(node.attrib["id"])
@@ -72,13 +73,16 @@ def parse_book(book):
 
 
 def main():
-    if len(sys.argv) != 3:
-        raise SystemExit("Usage: build_web_data.py INPUT.usfx.xml OUTPUT.json")
+    if len(sys.argv) != 4:
+        raise SystemExit(
+            "Usage: build_web_data.py INPUT.usfx.xml OUTPUT.json TRANSLATION_NAME"
+        )
 
     source = Path(sys.argv[1])
     output = Path(sys.argv[2])
+    translation_name = sys.argv[3]
     root = ET.parse(source).getroot()
-    data = {"translation": "World English Bible (WEB)", "books": {}}
+    data = {"translation": translation_name, "books": {}}
 
     for book in root.findall("book"):
         book_id = book.attrib.get("id")
