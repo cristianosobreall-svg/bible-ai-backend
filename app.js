@@ -9,12 +9,48 @@ const bibles = {
   )
 };
 
+const staticAssets = new Map([
+  ["/manifest.webmanifest",{
+    body:readFileSync(new URL("./manifest.webmanifest",import.meta.url)),
+    contentType:"application/manifest+json; charset=utf-8",
+    cacheControl:"public, max-age=3600"
+  }],
+  ["/sw.js",{
+    body:readFileSync(new URL("./sw.js",import.meta.url)),
+    contentType:"text/javascript; charset=utf-8",
+    cacheControl:"no-cache"
+  }],
+  ["/apple-touch-icon.png",{
+    body:readFileSync(new URL("./apple-touch-icon.png",import.meta.url)),
+    contentType:"image/png",
+    cacheControl:"public, max-age=604800"
+  }],
+  ["/icon-192.png",{
+    body:readFileSync(new URL("./icon-192.png",import.meta.url)),
+    contentType:"image/png",
+    cacheControl:"public, max-age=604800"
+  }],
+  ["/icon-512.png",{
+    body:readFileSync(new URL("./icon-512.png",import.meta.url)),
+    contentType:"image/png",
+    cacheControl:"public, max-age=604800"
+  }]
+]);
+
 const page = `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#112e26">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Scripture AI">
+<meta name="format-detection" content="telephone=no">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
 <title>Scripture AI Bible</title>
 
 <style>
@@ -42,7 +78,7 @@ body{
 header{
   background:var(--forest);
   color:white;
-  padding:18px;
+  padding:calc(18px + env(safe-area-inset-top)) 18px 18px;
 }
 
 .top{
@@ -562,6 +598,19 @@ language.addEventListener("change", function(){
 
 });
 
+
+if("serviceWorker" in navigator){
+
+  window.addEventListener("load", function(){
+
+    navigator.serviceWorker.register("/sw.js").catch(function(error){
+      console.error("App installation setup failed:",error);
+    });
+
+  });
+
+}
+
 </script>
 
 </body>
@@ -1036,6 +1085,29 @@ export default {
       new URL(request.url);
 
     try{
+
+      const staticAsset =
+        staticAssets.get(url.pathname);
+
+      if(
+        request.method === "GET" &&
+        staticAsset
+      ){
+
+        return new Response(
+          staticAsset.body,
+          {
+            headers:{
+              "content-type":staticAsset.contentType,
+              "cache-control":staticAsset.cacheControl,
+              ...(url.pathname === "/sw.js"
+                ? {"service-worker-allowed":"/"}
+                : {})
+            }
+          }
+        );
+
+      }
 
       if(
         request.method === "GET" &&

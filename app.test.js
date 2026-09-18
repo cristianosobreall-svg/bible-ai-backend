@@ -22,6 +22,30 @@ test("health reports the complete local Bible",async function(){
 });
 
 
+test("serves an installable iPhone web app shell",async function(){
+  const pageResponse = await request("/");
+  const html = await pageResponse.text();
+  const manifestResponse = await request("/manifest.webmanifest");
+  const manifest = await manifestResponse.json();
+  const serviceWorkerResponse = await request("/sw.js");
+  const serviceWorker = await serviceWorkerResponse.text();
+  const iconResponse = await request("/apple-touch-icon.png");
+  const icon = new Uint8Array(await iconResponse.arrayBuffer());
+
+  assert.equal(pageResponse.status,200);
+  assert.match(html,/apple-mobile-web-app-capable/);
+  assert.match(html,/rel="manifest" href="\/manifest\.webmanifest"/);
+  assert.match(html,/navigator\.serviceWorker\.register\("\/sw\.js"\)/);
+  assert.equal(manifestResponse.status,200);
+  assert.equal(manifest.name,"Scripture AI Bible");
+  assert.equal(manifest.display,"standalone");
+  assert.equal(manifest.icons.length,2);
+  assert.match(serviceWorker,/CACHE_NAME = "scripture-ai-v1"/);
+  assert.equal(iconResponse.headers.get("content-type"),"image/png");
+  assert.deepEqual(Array.from(icon.slice(0,8)),[137,80,78,71,13,10,26,10]);
+});
+
+
 test("looks up an exact WEB verse locally",async function(){
   const response = await request("/api/passage?reference=John%203%3A16");
   const data = await response.json();
