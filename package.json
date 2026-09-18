@@ -1,0 +1,13 @@
+{
+  "name": "bible-ai-backend",
+  "private": true,
+  "type": "module",
+  "version": "1.0.0",
+  "description": "A bilingual Bible study app with Scripture-grounded AI answers.",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node server.js"
+  }
+}
