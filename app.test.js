@@ -40,7 +40,7 @@ test("serves an installable iPhone web app shell",async function(){
   assert.equal(manifest.name,"Bible Intelligence");
   assert.equal(manifest.display,"standalone");
   assert.equal(manifest.icons.length,2);
-  assert.match(serviceWorker,/CACHE_NAME = "bible-intelligence-v3"/);
+  assert.match(serviceWorker,/CACHE_NAME = "bible-intelligence-v4"/);
   assert.equal(iconResponse.headers.get("content-type"),"image/png");
   assert.deepEqual(Array.from(icon.slice(0,8)),[137,80,78,71,13,10,26,10]);
 });
@@ -77,6 +77,21 @@ test("uses glass controls while keeping Bible text opaque",async function(){
   assert.match(html,/\.answer\{[\s\S]*background:rgba\(255,253,247,\.97\)/);
   assert.match(html,/body\[data-theme="mountains"\]/);
   assert.match(html,/body\[data-theme="ocean"\]/);
+});
+
+
+test("shows device-friendly Home Screen installation help",async function(){
+  const pageResponse = await request("/");
+  const html = await pageResponse.text();
+
+  assert.match(html,/Want Bible Intelligence to work like an app\?/);
+  assert.match(html,/Add to Home Screen/);
+  assert.match(html,/beforeinstallprompt/);
+  assert.match(html,/iphone\|ipad\|ipod/i);
+  assert.match(html,/android/i);
+  assert.match(html,/display-mode: standalone/);
+  assert.match(html,/¿Quieres que Bible Intelligence funcione como una app\?/);
+  assert.match(html,/Agregar a pantalla de inicio/);
 });
 
 
