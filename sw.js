@@ -1,4 +1,4 @@
-const CACHE_NAME = "bible-intelligence-v3";
+const CACHE_NAME = "bible-intelligence-v4";
 const APP_SHELL = [
   "/",
   "/manifest.webmanifest",
