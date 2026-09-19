@@ -1,13 +1,13 @@
 {
-  "name": "Scripture AI Bible",
-  "short_name": "Scripture AI",
+  "name": "Bible Intelligence",
+  "short_name": "Bible Intelligence",
   "description": "A bilingual Bible study app with Scripture-grounded AI answers.",
   "lang": "en",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#f8f4e9",
-  "theme_color": "#112e26",
+  "background_color": "#081a22",
+  "theme_color": "#092226",
   "icons": [
     {
       "src": "/icon-192.png",

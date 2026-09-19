@@ -1,10 +1,13 @@
-const CACHE_NAME = "scripture-ai-v1";
+const CACHE_NAME = "bible-intelligence-v2";
 const APP_SHELL = [
   "/",
   "/manifest.webmanifest",
   "/apple-touch-icon.png",
   "/icon-192.png",
   "/icon-512.png"
+  ,"/background-waterfall.jpg"
+  ,"/background-mountains.jpg"
+  ,"/background-ocean.jpg"
 ];
 
 self.addEventListener("install",function(event){

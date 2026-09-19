@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { backgrounds } from "./backgrounds.js";
 
 const bibles = {
   en:JSON.parse(
@@ -34,6 +35,21 @@ const staticAssets = new Map([
     body:readFileSync(new URL("./icon-512.png",import.meta.url)),
     contentType:"image/png",
     cacheControl:"public, max-age=604800"
+  }],
+  ["/background-waterfall.jpg",{
+    body:Buffer.from(backgrounds.waterfall,"base64"),
+    contentType:"image/jpeg",
+    cacheControl:"public, max-age=604800"
+  }],
+  ["/background-mountains.jpg",{
+    body:Buffer.from(backgrounds.mountains,"base64"),
+    contentType:"image/jpeg",
+    cacheControl:"public, max-age=604800"
+  }],
+  ["/background-ocean.jpg",{
+    body:Buffer.from(backgrounds.ocean,"base64"),
+    contentType:"image/jpeg",
+    cacheControl:"public, max-age=604800"
   }]
 ]);
 
@@ -46,12 +62,12 @@ const page = `<!doctype html>
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Scripture AI">
+<meta name="apple-mobile-web-app-title" content="Bible Intelligence">
 <meta name="format-detection" content="telephone=no">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
-<title>Scripture AI Bible</title>
+<title>Bible Intelligence</title>
 
 <style>
 :root{
@@ -70,13 +86,22 @@ const page = `<!doctype html>
 body{
   margin:0;
   min-height:100vh;
-  background:linear-gradient(180deg,#e7efe9 0,#f8f4e9 28rem);
+  background-color:#081a22;
+  background-image:linear-gradient(rgba(5,18,25,.45),rgba(5,18,25,.64)),url('/background-waterfall.jpg');
+  background-position:center;
+  background-size:cover;
+  background-attachment:fixed;
   color:var(--ink);
   font-family:Arial,sans-serif;
+  transition:background-image .35s ease;
 }
 
+body[data-theme="mountains"]{background-image:linear-gradient(rgba(5,18,25,.42),rgba(5,18,25,.62)),url('/background-mountains.jpg')}
+body[data-theme="ocean"]{background-image:linear-gradient(rgba(5,18,25,.42),rgba(5,18,25,.62)),url('/background-ocean.jpg')}
+
 header{
-  background:var(--forest);
+  background:rgba(9,34,38,.88);
+  backdrop-filter:blur(12px);
   color:white;
   padding:calc(18px + env(safe-area-inset-top)) 18px 18px;
 }
@@ -88,6 +113,8 @@ header{
   justify-content:space-between;
   align-items:center;
 }
+
+.header-controls{display:flex;gap:8px;align-items:center}
 
 .brand{
   display:flex;
@@ -112,6 +139,7 @@ h1{
 select{
   padding:9px;
   border-radius:20px;
+  max-width:100%;
 }
 
 main{
@@ -121,14 +149,15 @@ main{
 }
 
 h2{
-  color:var(--forest);
+  color:white;
   font-family:Georgia,serif;
   font-size:38px;
   margin-bottom:5px;
 }
 
 .intro{
-  color:var(--muted);
+  color:#edf5f2;
+  text-shadow:0 1px 3px #000;
 }
 
 .tabs{
@@ -152,7 +181,8 @@ h2{
 }
 
 .panel{
-  background:var(--paper);
+  background:rgba(255,253,247,.94);
+  backdrop-filter:blur(8px);
   border:1px solid var(--line);
   border-radius:20px;
   padding:20px;
@@ -238,8 +268,29 @@ textarea{
 footer{
   margin-top:30px;
   text-align:center;
-  color:var(--muted);
+  color:white;
+  text-shadow:0 1px 3px #000;
   font-size:13px;
+}
+
+.browser-title{font-family:Georgia,serif;font-size:24px;margin:0 0 4px;color:var(--forest)}
+.browser-help{margin:0 0 14px;color:var(--muted)}
+.bible-browser{display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:10px;align-items:end;margin-bottom:18px}
+.bible-browser label{font-size:13px;margin:0 0 5px;color:var(--muted)}
+.bible-browser select{width:100%;border:2px solid #cbc6b8;background:white;border-radius:12px;font-size:16px}
+.bible-browser .primary{margin:0;white-space:nowrap}
+.manual-divider{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:13px;margin:4px 0 16px}
+.manual-divider:before,.manual-divider:after{content:"";height:1px;background:var(--line);flex:1}
+
+@media(max-width:680px){
+  .top{align-items:flex-start;gap:12px}
+  .header-controls{flex-direction:column;align-items:stretch}
+  .header-controls select{font-size:13px;padding:8px}
+  h1{font-size:25px}
+  h2{font-size:32px}
+  .bible-browser{grid-template-columns:1fr 1fr}
+  .book-field{grid-column:1/-1}
+  .bible-browser .primary{grid-column:1/-1;width:100%}
 }
 </style>
 </head>
@@ -252,15 +303,22 @@ footer{
 <div class="brand">
 <div class="book">✝</div>
 <div>
-<h1>Scripture AI Bible</h1>
-<div class="subtitle">Answers grounded in the Bible</div>
+<h1>Bible Intelligence</h1>
+<div class="subtitle">Answers grounded in Scripture</div>
 </div>
 </div>
 
-<select id="language">
-<option value="en">English</option>
-<option value="es">Español</option>
-</select>
+<div class="header-controls">
+  <select id="theme" aria-label="Background">
+    <option value="waterfall">🌊 Majestic Waterfall</option>
+    <option value="mountains">🏔️ Golden Mountains</option>
+    <option value="ocean">🌌 Celestial Ocean</option>
+  </select>
+  <select id="language" aria-label="Language">
+    <option value="en">English</option>
+    <option value="es">Español</option>
+  </select>
+</div>
 
 </div>
 </header>
@@ -304,6 +362,27 @@ Ask the Bible
 
 <div class="panel hidden" id="versePanel">
 
+<h3 class="browser-title" id="browserTitle">Read the Bible</h3>
+<p class="browser-help" id="browserHelp">Choose any book, chapter, and verse.</p>
+
+<div class="bible-browser">
+  <div class="book-field">
+    <label for="bookSelect" id="bookLabel">Book</label>
+    <select id="bookSelect"></select>
+  </div>
+  <div>
+    <label for="chapterSelect" id="chapterLabel">Chapter</label>
+    <select id="chapterSelect"></select>
+  </div>
+  <div>
+    <label for="verseSelect" id="verseLabel">Verse</label>
+    <select id="verseSelect"></select>
+  </div>
+  <button type="button" class="primary" id="goButton">Go</button>
+</div>
+
+<div class="manual-divider" id="manualDivider">or type a reference</div>
+
 <label id="referenceLabel">Enter a Bible reference</label>
 
 <input
@@ -342,7 +421,77 @@ var verseButton = document.getElementById("verseButton");
 var passageResult = document.getElementById("passage-result");
 
 var language = document.getElementById("language");
+var theme = document.getElementById("theme");
 var footerText = document.getElementById("footerText");
+var bookSelect = document.getElementById("bookSelect");
+var chapterSelect = document.getElementById("chapterSelect");
+var verseSelect = document.getElementById("verseSelect");
+var goButton = document.getElementById("goButton");
+var bibleBookData = [];
+
+function setTheme(themeName){
+  var allowed = ["waterfall","mountains","ocean"];
+  var selected = allowed.indexOf(themeName) >= 0 ? themeName : "waterfall";
+  document.body.dataset.theme = selected;
+  theme.value = selected;
+  localStorage.setItem("bible-intelligence-theme",selected);
+}
+
+theme.addEventListener("change",function(){
+  setTheme(theme.value);
+});
+
+setTheme(localStorage.getItem("bible-intelligence-theme") || "waterfall");
+
+function addOption(select,value,text){
+  var option = document.createElement("option");
+  option.value = value;
+  option.textContent = text;
+  select.appendChild(option);
+}
+
+function populateChapters(){
+  chapterSelect.innerHTML = "";
+  var book = bibleBookData[Number(bookSelect.value)] || bibleBookData[0];
+  if(!book){ return; }
+  book.chapters.forEach(function(verseCount,index){
+    addOption(chapterSelect,String(index + 1),String(index + 1));
+  });
+  populateVerses();
+}
+
+function populateVerses(){
+  verseSelect.innerHTML = "";
+  var book = bibleBookData[Number(bookSelect.value)] || bibleBookData[0];
+  var chapterIndex = Number(chapterSelect.value || 1) - 1;
+  var count = book && book.chapters[chapterIndex] || 0;
+  addOption(verseSelect,"",language.value === "es" ? "Capítulo completo" : "Whole chapter");
+  for(var verseNumber=1; verseNumber<=count; verseNumber++){
+    addOption(verseSelect,String(verseNumber),String(verseNumber));
+  }
+}
+
+async function loadBibleBooks(){
+  var response = await fetch("/api/books?language=" + encodeURIComponent(language.value));
+  if(!response.ok){ throw new Error("Could not load Bible books"); }
+  var data = await response.json();
+  bibleBookData = data.books || [];
+  bookSelect.innerHTML = "";
+  bibleBookData.forEach(function(book,index){
+    addOption(bookSelect,String(index),book.name);
+  });
+  populateChapters();
+}
+
+bookSelect.addEventListener("change",populateChapters);
+chapterSelect.addEventListener("change",populateVerses);
+
+goButton.addEventListener("click",function(){
+  var book = bibleBookData[Number(bookSelect.value)];
+  if(!book){ return; }
+  reference.value = book.name + " " + chapterSelect.value + (verseSelect.value ? ":" + verseSelect.value : "");
+  verseButton.click();
+});
 
 
 askTab.addEventListener("click", function(){
@@ -558,6 +707,14 @@ language.addEventListener("change", function(){
     verseButton.textContent =
       "Buscar pasaje";
 
+    document.getElementById("browserTitle").textContent = "Lee la Biblia";
+    document.getElementById("browserHelp").textContent = "Elige cualquier libro, capítulo y versículo.";
+    document.getElementById("bookLabel").textContent = "Libro";
+    document.getElementById("chapterLabel").textContent = "Capítulo";
+    document.getElementById("verseLabel").textContent = "Versículo";
+    document.getElementById("goButton").textContent = "Ir";
+    document.getElementById("manualDivider").textContent = "o escribe una referencia";
+
     footerText.textContent =
       "Texto bíblico: Reina-Valera 1909 (RV1909)—Dominio Público. Las respuestas de IA pueden contener errores; comprueba siempre las Escrituras citadas.";
 
@@ -591,11 +748,27 @@ language.addEventListener("change", function(){
     verseButton.textContent =
       "Find passage";
 
+    document.getElementById("browserTitle").textContent = "Read the Bible";
+    document.getElementById("browserHelp").textContent = "Choose any book, chapter, and verse.";
+    document.getElementById("bookLabel").textContent = "Book";
+    document.getElementById("chapterLabel").textContent = "Chapter";
+    document.getElementById("verseLabel").textContent = "Verse";
+    document.getElementById("goButton").textContent = "Go";
+    document.getElementById("manualDivider").textContent = "or type a reference";
+
     footerText.textContent =
       "Scripture texts: World English Bible (WEB) and Reina-Valera 1909 (RV1909)—Public Domain. AI answers may contain mistakes—always check the cited Scripture.";
 
   }
 
+  loadBibleBooks().catch(function(error){
+    console.error(error);
+  });
+
+});
+
+loadBibleBooks().catch(function(error){
+  console.error(error);
 });
 
 
@@ -1140,6 +1313,36 @@ export default {
           spanishBibleBooks:Object.keys(bibles.es.books).length,
           aiConfigured:
             Boolean(env.OPENAI_API_KEY)
+        });
+
+      }
+
+
+      if(
+        request.method === "GET" &&
+        url.pathname === "/api/books"
+      ){
+
+        const selectedLanguage =
+          url.searchParams.get("language") === "es" ? "es" : "en";
+        const bible = bibles[selectedLanguage];
+
+        return json({
+          books:Object.keys(bibles.en.books).map(function(englishName){
+            const chapters = bible.books[englishName] || {};
+            const chapterNumbers = Object.keys(chapters)
+              .map(Number)
+              .filter(function(number){ return number > 0; })
+              .sort(function(a,b){ return a-b; });
+
+            return {
+              name:selectedLanguage === "es" ? spanishBookNames[englishName] : englishName,
+              chapters:chapterNumbers.map(function(chapterNumber){
+                const chapter = chapters[chapterNumber] || [];
+                return Math.max(0,chapter.length - 1);
+              })
+            };
+          })
         });
 
       }

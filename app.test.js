@@ -37,12 +37,34 @@ test("serves an installable iPhone web app shell",async function(){
   assert.match(html,/rel="manifest" href="\/manifest\.webmanifest"/);
   assert.match(html,/navigator\.serviceWorker\.register\("\/sw\.js"\)/);
   assert.equal(manifestResponse.status,200);
-  assert.equal(manifest.name,"Scripture AI Bible");
+  assert.equal(manifest.name,"Bible Intelligence");
   assert.equal(manifest.display,"standalone");
   assert.equal(manifest.icons.length,2);
-  assert.match(serviceWorker,/CACHE_NAME = "scripture-ai-v1"/);
+  assert.match(serviceWorker,/CACHE_NAME = "bible-intelligence-v2"/);
   assert.equal(iconResponse.headers.get("content-type"),"image/png");
   assert.deepEqual(Array.from(icon.slice(0,8)),[137,80,78,71,13,10,26,10]);
+});
+
+
+test("serves background choices and Bible browser metadata",async function(){
+  const pageResponse = await request("/");
+  const html = await pageResponse.text();
+  const booksResponse = await request("/api/books?language=es");
+  const books = await booksResponse.json();
+  const waterfallResponse = await request("/background-waterfall.jpg");
+
+  assert.match(html,/Bible Intelligence/);
+  assert.match(html,/id="theme"/);
+  assert.match(html,/Majestic Waterfall/);
+  assert.match(html,/id="bookSelect"/);
+  assert.match(html,/id="chapterSelect"/);
+  assert.match(html,/id="verseSelect"/);
+  assert.equal(booksResponse.status,200);
+  assert.equal(books.books.length,66);
+  assert.equal(books.books[0].name,"Génesis");
+  assert.equal(books.books[0].chapters.length,50);
+  assert.equal(books.books[0].chapters[0],31);
+  assert.equal(waterfallResponse.headers.get("content-type"),"image/jpeg");
 });
 
 
