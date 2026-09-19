@@ -79,6 +79,11 @@ const page = `<!doctype html>
   --line:#ded8c8;
   --ink:#18211e;
   --muted:#66716d;
+  --glass:rgba(235,247,255,.13);
+  --glass-strong:rgba(238,248,255,.23);
+  --glass-line:rgba(255,255,255,.52);
+  --glass-text:#fff;
+  --glass-shadow:0 12px 34px rgba(0,12,22,.24),inset 0 1px 0 rgba(255,255,255,.38);
 }
 
 *{box-sizing:border-box}
@@ -100,8 +105,11 @@ body[data-theme="mountains"]{background-image:linear-gradient(rgba(5,18,25,.42),
 body[data-theme="ocean"]{background-image:linear-gradient(rgba(5,18,25,.42),rgba(5,18,25,.62)),url('/background-ocean.jpg')}
 
 header{
-  background:rgba(9,34,38,.88);
-  backdrop-filter:blur(12px);
+  background:rgba(220,240,248,.11);
+  -webkit-backdrop-filter:blur(24px) saturate(145%);
+  backdrop-filter:blur(24px) saturate(145%);
+  border-bottom:1px solid var(--glass-line);
+  box-shadow:var(--glass-shadow);
   color:white;
   padding:calc(18px + env(safe-area-inset-top)) 18px 18px;
 }
@@ -123,7 +131,17 @@ header{
 }
 
 .book{
+  width:48px;
+  height:48px;
+  display:grid;
+  place-items:center;
   font-size:30px;
+  border:1px solid var(--glass-line);
+  border-radius:16px;
+  background:var(--glass);
+  -webkit-backdrop-filter:blur(18px) saturate(145%);
+  backdrop-filter:blur(18px) saturate(145%);
+  box-shadow:var(--glass-shadow);
 }
 
 h1{
@@ -137,10 +155,19 @@ h1{
 }
 
 select{
-  padding:9px;
+  padding:10px 12px;
   border-radius:20px;
   max-width:100%;
+  color:var(--glass-text);
+  border:1px solid var(--glass-line);
+  background:var(--glass);
+  -webkit-backdrop-filter:blur(18px) saturate(145%);
+  backdrop-filter:blur(18px) saturate(145%);
+  box-shadow:var(--glass-shadow);
+  font-weight:600;
 }
+
+select option{color:var(--ink);background:var(--paper)}
 
 main{
   max-width:920px;
@@ -169,23 +196,31 @@ h2{
 .tab{
   padding:10px 16px;
   border-radius:20px;
-  border:1px solid var(--line);
-  background:white;
-  color:var(--green);
+  border:1px solid var(--glass-line);
+  background:var(--glass);
+  color:white;
+  -webkit-backdrop-filter:blur(18px) saturate(145%);
+  backdrop-filter:blur(18px) saturate(145%);
+  box-shadow:var(--glass-shadow);
   font-weight:bold;
 }
 
 .tab.active{
-  background:var(--green);
+  background:var(--glass-strong);
   color:white;
+  border-color:rgba(255,255,255,.82);
+  box-shadow:0 12px 34px rgba(0,12,22,.28),inset 0 0 0 1px rgba(255,255,255,.28),inset 0 1px 0 rgba(255,255,255,.65);
 }
 
 .panel{
-  background:rgba(255,253,247,.94);
-  backdrop-filter:blur(8px);
-  border:1px solid var(--line);
+  background:var(--glass);
+  -webkit-backdrop-filter:blur(24px) saturate(145%);
+  backdrop-filter:blur(24px) saturate(145%);
+  border:1px solid var(--glass-line);
+  box-shadow:var(--glass-shadow);
   border-radius:20px;
   padding:20px;
+  color:white;
 }
 
 .hidden{
@@ -200,25 +235,35 @@ label{
 
 textarea,input{
   width:100%;
-  border:2px solid #cbc6b8;
+  border:1px solid var(--glass-line);
   border-radius:14px;
   padding:14px;
   font-size:17px;
+  color:white;
+  background:var(--glass);
+  -webkit-backdrop-filter:blur(18px) saturate(145%);
+  backdrop-filter:blur(18px) saturate(145%);
+  box-shadow:var(--glass-shadow);
 }
+
+textarea::placeholder,input::placeholder{color:rgba(255,255,255,.76)}
 
 textarea{
   min-height:120px;
 }
 
 .primary{
-  background:var(--green);
+  background:var(--glass-strong);
   color:white;
-  border:0;
+  border:1px solid var(--glass-line);
   border-radius:13px;
   padding:14px 20px;
   font-size:17px;
   font-weight:bold;
   margin-top:12px;
+  -webkit-backdrop-filter:blur(18px) saturate(145%);
+  backdrop-filter:blur(18px) saturate(145%);
+  box-shadow:var(--glass-shadow);
 }
 
 .primary:disabled{
@@ -234,10 +279,14 @@ textarea{
 
 .suggestion{
   white-space:nowrap;
-  border:1px solid #d8d0bb;
-  background:#fff9e9;
+  border:1px solid var(--glass-line);
+  background:var(--glass);
+  color:white;
   border-radius:20px;
   padding:9px 12px;
+  -webkit-backdrop-filter:blur(18px) saturate(145%);
+  backdrop-filter:blur(18px) saturate(145%);
+  box-shadow:var(--glass-shadow);
 }
 
 #result,#passage-result{
@@ -245,12 +294,14 @@ textarea{
 }
 
 .answer{
-  background:white;
+  background:rgba(255,253,247,.97);
+  color:var(--ink);
   border-left:5px solid var(--gold);
   border-radius:14px;
   padding:18px;
   white-space:pre-wrap;
   line-height:1.6;
+  box-shadow:0 12px 34px rgba(0,12,22,.22);
 }
 
 .error{
@@ -262,7 +313,7 @@ textarea{
 
 .loading{
   padding:15px;
-  color:var(--muted);
+  color:white;
 }
 
 footer{
@@ -273,14 +324,18 @@ footer{
   font-size:13px;
 }
 
-.browser-title{font-family:Georgia,serif;font-size:24px;margin:0 0 4px;color:var(--forest)}
-.browser-help{margin:0 0 14px;color:var(--muted)}
+.browser-title{font-family:Georgia,serif;font-size:24px;margin:0 0 4px;color:white}
+.browser-help{margin:0 0 14px;color:rgba(255,255,255,.82)}
 .bible-browser{display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:10px;align-items:end;margin-bottom:18px}
-.bible-browser label{font-size:13px;margin:0 0 5px;color:var(--muted)}
-.bible-browser select{width:100%;border:2px solid #cbc6b8;background:white;border-radius:12px;font-size:16px}
+.bible-browser label{font-size:13px;margin:0 0 5px;color:rgba(255,255,255,.82)}
+.bible-browser select{width:100%;border:1px solid var(--glass-line);background:var(--glass);border-radius:12px;font-size:16px}
 .bible-browser .primary{margin:0;white-space:nowrap}
-.manual-divider{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:13px;margin:4px 0 16px}
-.manual-divider:before,.manual-divider:after{content:"";height:1px;background:var(--line);flex:1}
+.manual-divider{display:flex;align-items:center;gap:10px;color:rgba(255,255,255,.82);font-size:13px;margin:4px 0 16px}
+.manual-divider:before,.manual-divider:after{content:"";height:1px;background:rgba(255,255,255,.45);flex:1}
+
+button,select{cursor:pointer}
+button:active{transform:translateY(1px)}
+button:focus-visible,select:focus-visible,textarea:focus-visible,input:focus-visible{outline:2px solid white;outline-offset:2px}
 
 @media(max-width:680px){
   .top{align-items:flex-start;gap:12px}
