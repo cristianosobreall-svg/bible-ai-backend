@@ -40,7 +40,7 @@ test("serves an installable iPhone web app shell",async function(){
   assert.equal(manifest.name,"Bible Intelligence");
   assert.equal(manifest.display,"standalone");
   assert.equal(manifest.icons.length,2);
-  assert.match(serviceWorker,/CACHE_NAME = "bible-intelligence-v2"/);
+  assert.match(serviceWorker,/CACHE_NAME = "bible-intelligence-v3"/);
   assert.equal(iconResponse.headers.get("content-type"),"image/png");
   assert.deepEqual(Array.from(icon.slice(0,8)),[137,80,78,71,13,10,26,10]);
 });
@@ -65,6 +65,18 @@ test("serves background choices and Bible browser metadata",async function(){
   assert.equal(books.books[0].chapters.length,50);
   assert.equal(books.books[0].chapters[0],31);
   assert.equal(waterfallResponse.headers.get("content-type"),"image/jpeg");
+});
+
+
+test("uses glass controls while keeping Bible text opaque",async function(){
+  const pageResponse = await request("/");
+  const html = await pageResponse.text();
+
+  assert.match(html,/--glass:rgba\(235,247,255,\.13\)/);
+  assert.match(html,/\.panel\{[\s\S]*background:var\(--glass\)/);
+  assert.match(html,/\.answer\{[\s\S]*background:rgba\(255,253,247,\.97\)/);
+  assert.match(html,/body\[data-theme="mountains"\]/);
+  assert.match(html,/body\[data-theme="ocean"\]/);
 });
 
 
