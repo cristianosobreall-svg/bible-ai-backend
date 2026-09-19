@@ -333,6 +333,49 @@ footer{
 .manual-divider{display:flex;align-items:center;gap:10px;color:rgba(255,255,255,.82);font-size:13px;margin:4px 0 16px}
 .manual-divider:before,.manual-divider:after{content:"";height:1px;background:rgba(255,255,255,.45);flex:1}
 
+.install-tip{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:14px;
+  margin:0 0 18px;
+  padding:14px 16px;
+  color:white;
+  background:var(--glass);
+  border:1px solid var(--glass-line);
+  border-radius:18px;
+  -webkit-backdrop-filter:blur(24px) saturate(145%);
+  backdrop-filter:blur(24px) saturate(145%);
+  box-shadow:var(--glass-shadow);
+}
+.install-tip strong{display:block;font-size:17px;margin-bottom:3px}
+.install-tip p{margin:0;color:rgba(255,255,255,.82);font-size:14px}
+.install-actions{display:flex;gap:8px;flex-shrink:0}
+.install-action,.install-close{
+  color:white;
+  background:var(--glass-strong);
+  border:1px solid var(--glass-line);
+  border-radius:12px;
+  padding:10px 12px;
+  font-weight:bold;
+}
+.install-close{background:transparent}
+.install-steps{
+  margin:0 0 20px;
+  padding:16px 18px;
+  color:white;
+  background:rgba(8,28,40,.36);
+  border:1px solid var(--glass-line);
+  border-radius:18px;
+  -webkit-backdrop-filter:blur(24px) saturate(145%);
+  backdrop-filter:blur(24px) saturate(145%);
+  box-shadow:var(--glass-shadow);
+}
+.install-steps h3{margin:0 0 10px;font-family:Georgia,serif}
+.install-steps ol{margin:0;padding-left:24px;line-height:1.7}
+.install-steps button{margin-top:12px}
+.install-tip.hidden,.install-steps.hidden{display:none}
+
 button,select{cursor:pointer}
 button:active{transform:translateY(1px)}
 button:focus-visible,select:focus-visible,textarea:focus-visible,input:focus-visible{outline:2px solid white;outline-offset:2px}
@@ -346,6 +389,9 @@ button:focus-visible,select:focus-visible,textarea:focus-visible,input:focus-vis
   .bible-browser{grid-template-columns:1fr 1fr}
   .book-field{grid-column:1/-1}
   .bible-browser .primary{grid-column:1/-1;width:100%}
+  .install-tip{align-items:flex-start;flex-direction:column}
+  .install-actions{width:100%}
+  .install-action{flex:1}
 }
 </style>
 </head>
@@ -379,6 +425,22 @@ button:focus-visible,select:focus-visible,textarea:focus-visible,input:focus-vis
 </header>
 
 <main>
+
+<section class="install-tip hidden" id="installTip" aria-label="Install Bible Intelligence">
+  <div>
+    <strong id="installTitle">Want Bible Intelligence to work like an app?</strong>
+    <p id="installText">Put it on your Home Screen in a few easy steps.</p>
+  </div>
+  <div class="install-actions">
+    <button type="button" class="install-action" id="installAction">Show me how</button>
+    <button type="button" class="install-close" id="installClose" aria-label="Close">Not now</button>
+  </div>
+</section>
+
+<section class="install-steps hidden" id="installSteps" aria-live="polite">
+  <h3 id="installStepsTitle">Add to your Home Screen</h3>
+  <ol id="installStepsList"></ol>
+</section>
 
 <h2 id="title">Ask. Read. Understand.</h2>
 
@@ -483,6 +545,99 @@ var chapterSelect = document.getElementById("chapterSelect");
 var verseSelect = document.getElementById("verseSelect");
 var goButton = document.getElementById("goButton");
 var bibleBookData = [];
+var installTip = document.getElementById("installTip");
+var installSteps = document.getElementById("installSteps");
+var installAction = document.getElementById("installAction");
+var installClose = document.getElementById("installClose");
+var installStepsList = document.getElementById("installStepsList");
+var installTitle = document.getElementById("installTitle");
+var installText = document.getElementById("installText");
+var installStepsTitle = document.getElementById("installStepsTitle");
+var deferredInstallPrompt = null;
+
+function isAppInstalled(){
+  return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+}
+
+function deviceKind(){
+  var agent = navigator.userAgent || "";
+  if(/android/i.test(agent)){ return "android"; }
+  if(/iphone|ipad|ipod/i.test(agent)){ return "ios"; }
+  return "other";
+}
+
+function setInstallSteps(kind){
+  var spanish = language.value === "es";
+  var steps = spanish
+    ? kind === "ios"
+      ? ["Toca Compartir — el cuadro con una flecha hacia arriba.","Toca Agregar a pantalla de inicio.","Toca Agregar."]
+      : kind === "android"
+        ? ["Toca los tres puntos en Chrome.","Toca Agregar a pantalla principal o Instalar app.","Toca Instalar."]
+        : ["En iPhone: toca Compartir y luego Agregar a pantalla de inicio.","En Android: toca los tres puntos y luego Instalar app."]
+    : kind === "ios"
+      ? ["Tap the Share button — the square with an up arrow.","Tap Add to Home Screen.","Tap Add."]
+      : kind === "android"
+        ? ["Tap the three dots in Chrome.","Tap Add to Home screen or Install app.","Tap Install."]
+        : ["On iPhone: tap Share, then Add to Home Screen.","On Android: tap the three dots, then Install app."];
+  installStepsList.innerHTML = "";
+  steps.forEach(function(step){
+    var item = document.createElement("li");
+    item.textContent = step;
+    installStepsList.appendChild(item);
+  });
+}
+
+function setInstallLanguage(){
+  var spanish = language.value === "es";
+  installTitle.textContent = spanish
+    ? "¿Quieres que Bible Intelligence funcione como una app?"
+    : "Want Bible Intelligence to work like an app?";
+  installText.textContent = spanish
+    ? "Ponla en tu pantalla de inicio con unos pasos fáciles."
+    : "Put it on your Home Screen in a few easy steps.";
+  installAction.textContent = deferredInstallPrompt
+    ? (spanish ? "Instalar app" : "Install app")
+    : (spanish ? "Muéstrame cómo" : "Show me how");
+  installClose.textContent = spanish ? "Ahora no" : "Not now";
+  installClose.setAttribute("aria-label",spanish ? "Cerrar" : "Close");
+  installStepsTitle.textContent = spanish ? "Agrégala a tu pantalla de inicio" : "Add to your Home Screen";
+  if(!installSteps.classList.contains("hidden")){
+    setInstallSteps(deviceKind());
+  }
+}
+
+if(!isAppInstalled() && sessionStorage.getItem("install-tip-closed") !== "yes"){
+  installTip.classList.remove("hidden");
+}
+
+window.addEventListener("beforeinstallprompt",function(event){
+  event.preventDefault();
+  deferredInstallPrompt = event;
+  setInstallLanguage();
+});
+
+installAction.addEventListener("click",async function(){
+  if(deferredInstallPrompt){
+    deferredInstallPrompt.prompt();
+    await deferredInstallPrompt.userChoice;
+    deferredInstallPrompt = null;
+    return;
+  }
+  setInstallSteps(deviceKind());
+  installSteps.classList.remove("hidden");
+  installSteps.scrollIntoView({behavior:"smooth",block:"nearest"});
+});
+
+installClose.addEventListener("click",function(){
+  installTip.classList.add("hidden");
+  installSteps.classList.add("hidden");
+  sessionStorage.setItem("install-tip-closed","yes");
+});
+
+window.addEventListener("appinstalled",function(){
+  installTip.classList.add("hidden");
+  installSteps.classList.add("hidden");
+});
 
 function setTheme(themeName){
   var allowed = ["waterfall","mountains","ocean"];
@@ -733,6 +888,8 @@ verseButton.addEventListener("click", async function(){
 
 language.addEventListener("change", function(){
 
+  setInstallLanguage();
+
   if(language.value === "es"){
 
     document.getElementById("title").textContent =
@@ -821,6 +978,8 @@ language.addEventListener("change", function(){
   });
 
 });
+
+setInstallLanguage();
 
 loadBibleBooks().catch(function(error){
   console.error(error);
