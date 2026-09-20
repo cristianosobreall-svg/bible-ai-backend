@@ -191,6 +191,7 @@ h2{
   display:flex;
   gap:10px;
   margin:20px 0 12px;
+  overflow-x:auto;
 }
 
 .tab{
@@ -303,6 +304,30 @@ textarea{
   line-height:1.6;
   box-shadow:0 12px 34px rgba(0,12,22,.22);
 }
+.answer.highlighted{background:#fff3a7;box-shadow:0 0 0 3px rgba(255,220,74,.5),0 12px 34px rgba(0,12,22,.22)}
+.passage-actions,.study-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.secondary{border:1px solid var(--glass-line);background:var(--glass-strong);color:white;border-radius:11px;padding:10px 12px;font-weight:bold;box-shadow:var(--glass-shadow)}
+.answer .secondary{color:var(--forest);background:#f7f0dc;border-color:#d8caa5;box-shadow:none}
+.passage-note{margin-top:12px;min-height:76px;color:var(--ink);background:white;border-color:#d8caa5;box-shadow:none}
+.passage-note::placeholder{color:#707873}
+
+.study-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.study-card{background:rgba(8,28,40,.28);border:1px solid var(--glass-line);border-radius:16px;padding:16px}
+.study-card.full{grid-column:1/-1}
+.study-card h3{margin:0 0 6px;font-family:Georgia,serif;font-size:22px}
+.study-card p{color:rgba(255,255,255,.82);margin:0 0 12px;line-height:1.45}
+.study-card input,.study-card textarea{margin-top:8px}
+.study-card textarea{min-height:96px}
+.progress-track{height:12px;background:rgba(255,255,255,.2);border-radius:999px;overflow:hidden;margin:12px 0 8px}
+.progress-fill{height:100%;width:0;background:linear-gradient(90deg,#e5b94a,#fff0a1);border-radius:999px;transition:width .3s ease}
+.study-list{display:grid;gap:9px;margin-top:12px}
+.study-item{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:start;padding:12px;border:1px solid rgba(255,255,255,.35);border-radius:13px;background:rgba(255,255,255,.1)}
+.study-item input{width:auto;margin:4px 0 0;box-shadow:none}
+.study-item strong{display:block;margin-bottom:4px}.study-item small{display:block;color:rgba(255,255,255,.76);margin-bottom:4px}.study-item p{margin:0;white-space:pre-wrap;color:white;font-size:14px}
+.study-delete{border:0;background:transparent;color:white;font-size:22px;line-height:1;padding:0 4px}
+.empty-study{padding:12px;border:1px dashed rgba(255,255,255,.4);border-radius:12px;color:rgba(255,255,255,.82)}
+.sermon-draft{min-height:300px!important;line-height:1.55}
+.saved-message{min-height:20px;margin-top:9px;color:#fff2a6;font-weight:bold}
 
 .error{
   background:#fff1ef;
@@ -392,6 +417,8 @@ button:focus-visible,select:focus-visible,textarea:focus-visible,input:focus-vis
   .install-tip{align-items:flex-start;flex-direction:column}
   .install-actions{width:100%}
   .install-action{flex:1}
+  .study-grid{grid-template-columns:1fr}
+  .study-card.full{grid-column:auto}
 }
 </style>
 </head>
@@ -451,6 +478,7 @@ Ask any Bible question and receive a clear answer supported by cited Scripture.
 <div class="tabs">
 <button type="button" class="tab active" id="askTab">Ask AI</button>
 <button type="button" class="tab" id="verseTab">Find a verse</button>
+<button type="button" class="tab" id="studyTab">My Study</button>
 </div>
 
 <div class="panel" id="askPanel">
@@ -515,6 +543,38 @@ Find passage
 
 </div>
 
+<div class="panel hidden" id="studyPanel">
+  <h3 class="browser-title" id="studyTitle">My Bible Study</h3>
+  <p class="browser-help" id="studyHelp">Keep notes, bookmarks, highlights, reading progress, and sermon drafts on this device.</p>
+  <div class="study-grid">
+    <section class="study-card">
+      <h3 id="progressTitle">Bible reading progress</h3>
+      <p id="progressText">0 of 1,189 chapters completed</p>
+      <div class="progress-track" aria-hidden="true"><div class="progress-fill" id="progressFill"></div></div>
+      <div class="study-actions"><button type="button" class="secondary" id="markCurrentRead">Mark current chapter read</button><button type="button" class="secondary" id="clearReading">Reset progress</button></div>
+    </section>
+    <section class="study-card">
+      <h3 id="newNoteTitle">New note</h3>
+      <input id="noteReference" placeholder="Reference or topic (optional)">
+      <textarea id="noteText" placeholder="Write what you learned, a question, or an idea…"></textarea>
+      <button type="button" class="secondary" id="saveNote">Save note</button>
+    </section>
+    <section class="study-card full">
+      <h3 id="materialsTitle">Saved study materials</h3>
+      <p id="materialsHelp">Select anything you want to place in your sermon draft.</p>
+      <div class="study-list" id="studyList"></div>
+    </section>
+    <section class="study-card full">
+      <h3 id="sermonTitle">Sermon workspace</h3>
+      <p id="sermonHelp">Write it yourself, save a draft, or optionally ask AI to organize only the materials you select.</p>
+      <input id="sermonName" placeholder="Sermon title or topic">
+      <textarea class="sermon-draft" id="sermonDraft" placeholder="Prepare your sermon here…"></textarea>
+      <div class="study-actions"><button type="button" class="secondary" id="insertSelected">Add selected notes</button><button type="button" class="secondary" id="prepareAi">Prepare with AI</button><button type="button" class="secondary" id="saveSermon">Save sermon draft</button></div>
+      <div class="saved-message" id="studyMessage" aria-live="polite"></div>
+    </section>
+  </div>
+</div>
+
 <footer id="footerText">
 Scripture texts: World English Bible (WEB) and Reina-Valera 1909 (RV1909)—Public Domain. AI answers may contain mistakes—always check the cited Scripture.
 </footer>
@@ -525,9 +585,11 @@ Scripture texts: World English Bible (WEB) and Reina-Valera 1909 (RV1909)—Publ
 
 var askTab = document.getElementById("askTab");
 var verseTab = document.getElementById("verseTab");
+var studyTab = document.getElementById("studyTab");
 
 var askPanel = document.getElementById("askPanel");
 var versePanel = document.getElementById("versePanel");
+var studyPanel = document.getElementById("studyPanel");
 
 var question = document.getElementById("question");
 var askButton = document.getElementById("askButton");
@@ -554,6 +616,11 @@ var installTitle = document.getElementById("installTitle");
 var installText = document.getElementById("installText");
 var installStepsTitle = document.getElementById("installStepsTitle");
 var deferredInstallPrompt = null;
+var currentPassage = null;
+var TOTAL_BIBLE_CHAPTERS = 1189;
+var STUDY_KEY = "bible-intelligence-study-v1";
+var READING_KEY = "bible-intelligence-reading-v1";
+var SERMON_KEY = "bible-intelligence-sermon-v1";
 
 function isAppInstalled(){
   return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
@@ -703,14 +770,181 @@ goButton.addEventListener("click",function(){
   verseButton.click();
 });
 
+function readLocalJson(key,fallback){
+  try{
+    var value = JSON.parse(localStorage.getItem(key) || "null");
+    return value === null ? fallback : value;
+  }
+  catch(error){
+    return fallback;
+  }
+}
+
+function studyWords(){
+  return language.value === "es"
+    ? {bookmark:"Marcador",highlight:"Resaltado",note:"Nota",empty:"Todavía no has guardado notas, marcadores ni versículos resaltados.",chapters:"de 1,189 capítulos completados",saved:"Guardado en este dispositivo.",select:"Selecciona por lo menos un elemento.",needTopic:"Escribe un título o tema antes de usar la IA.",aiError:"La IA no pudo preparar el sermón ahora. Puedes continuar escribiéndolo manualmente.",readingSaved:"Capítulo marcado como leído.",noteNeeded:"Escribe una nota primero."}
+    : {bookmark:"Bookmark",highlight:"Highlight",note:"Note",empty:"You have not saved any notes, bookmarks, or highlighted verses yet.",chapters:"of 1,189 chapters completed",saved:"Saved on this device.",select:"Select at least one study item.",needTopic:"Add a sermon title or topic before using AI.",aiError:"AI could not prepare the sermon right now. You can keep writing it manually.",readingSaved:"Chapter marked as read.",noteNeeded:"Write a note first."};
+}
+
+function getStudyItems(){ return readLocalJson(STUDY_KEY,[]); }
+function saveStudyItems(items){ localStorage.setItem(STUDY_KEY,JSON.stringify(items.slice(0,250))); renderStudy(); }
+
+function addStudyItem(type,referenceText,verseText,noteText){
+  var items = getStudyItems();
+  items.unshift({
+    id:String(Date.now()) + String(Math.random()).slice(2),
+    type:type,
+    reference:String(referenceText || "").trim(),
+    text:String(verseText || "").trim(),
+    note:String(noteText || "").trim(),
+    language:language.value,
+    createdAt:new Date().toISOString()
+  });
+  saveStudyItems(items);
+}
+
+function selectedStudyItems(){
+  var items = getStudyItems();
+  var selected = [];
+  document.querySelectorAll("[data-study-select]").forEach(function(box){
+    if(box.checked && items[Number(box.dataset.studySelect)]){
+      selected.push(items[Number(box.dataset.studySelect)]);
+    }
+  });
+  return selected;
+}
+
+function renderStudy(){
+  var words = studyWords();
+  var items = getStudyItems();
+  var list = document.getElementById("studyList");
+  list.innerHTML = "";
+
+  if(!items.length){
+    var empty = document.createElement("div");
+    empty.className = "empty-study";
+    empty.textContent = words.empty;
+    list.appendChild(empty);
+  }
+  else{
+    items.forEach(function(item,index){
+      var row = document.createElement("div");
+      row.className = "study-item";
+      var check = document.createElement("input");
+      check.type = "checkbox";
+      check.checked = true;
+      check.dataset.studySelect = String(index);
+      check.setAttribute("aria-label","Select study item");
+      var body = document.createElement("div");
+      var heading = document.createElement("strong");
+      heading.textContent = item.reference || (item.type === "note" ? words.note : words[item.type]);
+      var kind = document.createElement("small");
+      kind.textContent = words[item.type] || words.note;
+      body.appendChild(heading);
+      body.appendChild(kind);
+      if(item.text){ var verse = document.createElement("p"); verse.textContent = item.text; body.appendChild(verse); }
+      if(item.note){ var note = document.createElement("p"); note.textContent = item.note; note.style.marginTop = "7px"; body.appendChild(note); }
+      var remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "study-delete";
+      remove.textContent = "×";
+      remove.setAttribute("aria-label","Delete");
+      remove.addEventListener("click",function(){ var updated=getStudyItems(); updated.splice(index,1); saveStudyItems(updated); });
+      row.appendChild(check); row.appendChild(body); row.appendChild(remove); list.appendChild(row);
+    });
+  }
+
+  var reading = readLocalJson(READING_KEY,{});
+  var completed = Object.keys(reading).filter(function(key){ return reading[key]; }).length;
+  document.getElementById("progressText").textContent = completed + " " + words.chapters;
+  document.getElementById("progressFill").style.width = Math.min(100,completed / TOTAL_BIBLE_CHAPTERS * 100) + "%";
+}
+
+function currentChapterIdentity(){
+  var book = bibleBookData[Number(bookSelect.value)];
+  if(!book){ return null; }
+  return {key:String(Number(bookSelect.value) + 1) + ":" + chapterSelect.value,label:book.name + " " + chapterSelect.value};
+}
+
+function markCurrentChapterRead(){
+  var current = currentChapterIdentity();
+  if(!current){ return; }
+  var reading = readLocalJson(READING_KEY,{});
+  reading[current.key] = {label:current.label,completedAt:new Date().toISOString()};
+  localStorage.setItem(READING_KEY,JSON.stringify(reading));
+  document.getElementById("studyMessage").textContent = studyWords().readingSaved;
+  renderStudy();
+}
+
+document.getElementById("markCurrentRead").addEventListener("click",markCurrentChapterRead);
+document.getElementById("clearReading").addEventListener("click",function(){
+  localStorage.removeItem(READING_KEY);
+  renderStudy();
+});
+
+document.getElementById("saveNote").addEventListener("click",function(){
+  var noteText = document.getElementById("noteText");
+  if(!noteText.value.trim()){
+    document.getElementById("studyMessage").textContent = studyWords().noteNeeded;
+    return;
+  }
+  addStudyItem("note",document.getElementById("noteReference").value,"",noteText.value);
+  document.getElementById("noteReference").value = "";
+  noteText.value = "";
+  document.getElementById("studyMessage").textContent = studyWords().saved;
+});
+
+document.getElementById("insertSelected").addEventListener("click",function(){
+  var selected = selectedStudyItems();
+  if(!selected.length){ document.getElementById("studyMessage").textContent = studyWords().select; return; }
+  var draft = document.getElementById("sermonDraft");
+  var addition = selected.map(function(item){
+    return (item.reference ? item.reference + "\\n" : "") + (item.text ? item.text + "\\n" : "") + (item.note || "");
+  }).join("\\n\\n");
+  draft.value = (draft.value.trim() ? draft.value.trim() + "\\n\\n" : "") + addition;
+  document.getElementById("studyMessage").textContent = studyWords().saved;
+});
+
+document.getElementById("saveSermon").addEventListener("click",function(){
+  localStorage.setItem(SERMON_KEY,JSON.stringify({title:document.getElementById("sermonName").value,draft:document.getElementById("sermonDraft").value,updatedAt:new Date().toISOString()}));
+  document.getElementById("studyMessage").textContent = studyWords().saved;
+});
+
+document.getElementById("prepareAi").addEventListener("click",async function(){
+  var selected = selectedStudyItems();
+  var title = document.getElementById("sermonName").value.trim();
+  var message = document.getElementById("studyMessage");
+  if(!selected.length){ message.textContent = studyWords().select; return; }
+  if(!title){ message.textContent = studyWords().needTopic; return; }
+  var button = this;
+  button.disabled = true;
+  button.textContent = language.value === "es" ? "Preparando…" : "Preparing…";
+  try{
+    var response = await fetch("/api/sermon",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({title:title,language:language.value,materials:selected})});
+    var data = await response.json();
+    if(!response.ok){ throw new Error(data.error || "Sermon request failed"); }
+    document.getElementById("sermonDraft").value = data.sermon;
+    message.textContent = studyWords().saved;
+  }
+  catch(error){ console.error(error); message.textContent = studyWords().aiError; }
+  finally{ button.disabled = false; button.textContent = language.value === "es" ? "Preparar con IA" : "Prepare with AI"; }
+});
+
+var savedSermon = readLocalJson(SERMON_KEY,{});
+document.getElementById("sermonName").value = savedSermon.title || "";
+document.getElementById("sermonDraft").value = savedSermon.draft || "";
+renderStudy();
+
 
 askTab.addEventListener("click", function(){
 
   askPanel.classList.remove("hidden");
   versePanel.classList.add("hidden");
+  studyPanel.classList.add("hidden");
 
   askTab.classList.add("active");
   verseTab.classList.remove("active");
+  studyTab.classList.remove("active");
 
 });
 
@@ -719,10 +953,22 @@ verseTab.addEventListener("click", function(){
 
   versePanel.classList.remove("hidden");
   askPanel.classList.add("hidden");
+  studyPanel.classList.add("hidden");
 
   verseTab.classList.add("active");
   askTab.classList.remove("active");
+  studyTab.classList.remove("active");
 
+});
+
+studyTab.addEventListener("click",function(){
+  studyPanel.classList.remove("hidden");
+  askPanel.classList.add("hidden");
+  versePanel.classList.add("hidden");
+  studyTab.classList.add("active");
+  askTab.classList.remove("active");
+  verseTab.classList.remove("active");
+  renderStudy();
 });
 
 
@@ -865,6 +1111,53 @@ verseButton.addEventListener("click", async function(){
     answerBox.appendChild(heading);
     answerBox.appendChild(passage);
 
+    currentPassage = data;
+
+    var passageNote = document.createElement("textarea");
+    passageNote.className = "passage-note";
+    passageNote.placeholder = language.value === "es" ? "Escribe una nota sobre este pasaje…" : "Write a note about this passage…";
+
+    var passageActions = document.createElement("div");
+    passageActions.className = "passage-actions";
+
+    function passageAction(label,action){
+      var button = document.createElement("button");
+      button.type = "button";
+      button.className = "secondary";
+      button.textContent = label;
+      button.addEventListener("click",action);
+      passageActions.appendChild(button);
+      return button;
+    }
+
+    passageAction(language.value === "es" ? "🔖 Guardar marcador" : "🔖 Bookmark",function(){
+      addStudyItem("bookmark",data.reference,data.text,passageNote.value);
+      this.textContent = language.value === "es" ? "✓ Guardado" : "✓ Saved";
+    });
+
+    passageAction(language.value === "es" ? "🖍️ Resaltar versículo" : "🖍️ Highlight verse",function(){
+      addStudyItem("highlight",data.reference,data.text,passageNote.value);
+      answerBox.classList.add("highlighted");
+      this.textContent = language.value === "es" ? "✓ Resaltado" : "✓ Highlighted";
+    });
+
+    passageAction(language.value === "es" ? "📝 Guardar nota" : "📝 Save note",function(){
+      if(!passageNote.value.trim()){
+        passageNote.focus();
+        return;
+      }
+      addStudyItem("note",data.reference,data.text,passageNote.value);
+      this.textContent = language.value === "es" ? "✓ Nota guardada" : "✓ Note saved";
+    });
+
+    passageAction(language.value === "es" ? "✓ Marcar capítulo leído" : "✓ Mark chapter read",function(){
+      markCurrentChapterRead();
+      this.textContent = language.value === "es" ? "✓ Capítulo leído" : "✓ Chapter read";
+    });
+
+    answerBox.appendChild(passageNote);
+    answerBox.appendChild(passageActions);
+
     passageResult.appendChild(answerBox);
 
   }
@@ -900,6 +1193,7 @@ language.addEventListener("change", function(){
 
     askTab.textContent = "Preguntar a la IA";
     verseTab.textContent = "Buscar versículo";
+    studyTab.textContent = "Mi estudio";
 
     document.getElementById("questionLabel").textContent =
       "¿Qué te gustaría preguntar?";
@@ -926,6 +1220,24 @@ language.addEventListener("change", function(){
     document.getElementById("verseLabel").textContent = "Versículo";
     document.getElementById("goButton").textContent = "Ir";
     document.getElementById("manualDivider").textContent = "o escribe una referencia";
+    document.getElementById("studyTitle").textContent = "Mi estudio bíblico";
+    document.getElementById("studyHelp").textContent = "Guarda notas, marcadores, textos resaltados, progreso de lectura y borradores de sermones en este dispositivo.";
+    document.getElementById("progressTitle").textContent = "Progreso de lectura bíblica";
+    document.getElementById("markCurrentRead").textContent = "Marcar capítulo actual como leído";
+    document.getElementById("clearReading").textContent = "Reiniciar progreso";
+    document.getElementById("newNoteTitle").textContent = "Nueva nota";
+    document.getElementById("noteReference").placeholder = "Referencia o tema (opcional)";
+    document.getElementById("noteText").placeholder = "Escribe lo que aprendiste, una pregunta o una idea…";
+    document.getElementById("saveNote").textContent = "Guardar nota";
+    document.getElementById("materialsTitle").textContent = "Material de estudio guardado";
+    document.getElementById("materialsHelp").textContent = "Selecciona lo que quieras colocar en el borrador del sermón.";
+    document.getElementById("sermonTitle").textContent = "Espacio para preparar sermones";
+    document.getElementById("sermonHelp").textContent = "Escríbelo tú mismo, guarda el borrador o permite opcionalmente que la IA organice solamente el material seleccionado.";
+    document.getElementById("sermonName").placeholder = "Título o tema del sermón";
+    document.getElementById("sermonDraft").placeholder = "Prepara tu sermón aquí…";
+    document.getElementById("insertSelected").textContent = "Agregar notas seleccionadas";
+    document.getElementById("prepareAi").textContent = "Preparar con IA";
+    document.getElementById("saveSermon").textContent = "Guardar borrador";
 
     footerText.textContent =
       "Texto bíblico: Reina-Valera 1909 (RV1909)—Dominio Público. Las respuestas de IA pueden contener errores; comprueba siempre las Escrituras citadas.";
@@ -941,6 +1253,7 @@ language.addEventListener("change", function(){
 
     askTab.textContent = "Ask AI";
     verseTab.textContent = "Find a verse";
+    studyTab.textContent = "My Study";
 
     document.getElementById("questionLabel").textContent =
       "What would you like to ask?";
@@ -967,6 +1280,24 @@ language.addEventListener("change", function(){
     document.getElementById("verseLabel").textContent = "Verse";
     document.getElementById("goButton").textContent = "Go";
     document.getElementById("manualDivider").textContent = "or type a reference";
+    document.getElementById("studyTitle").textContent = "My Bible Study";
+    document.getElementById("studyHelp").textContent = "Keep notes, bookmarks, highlights, reading progress, and sermon drafts on this device.";
+    document.getElementById("progressTitle").textContent = "Bible reading progress";
+    document.getElementById("markCurrentRead").textContent = "Mark current chapter read";
+    document.getElementById("clearReading").textContent = "Reset progress";
+    document.getElementById("newNoteTitle").textContent = "New note";
+    document.getElementById("noteReference").placeholder = "Reference or topic (optional)";
+    document.getElementById("noteText").placeholder = "Write what you learned, a question, or an idea…";
+    document.getElementById("saveNote").textContent = "Save note";
+    document.getElementById("materialsTitle").textContent = "Saved study materials";
+    document.getElementById("materialsHelp").textContent = "Select anything you want to place in your sermon draft.";
+    document.getElementById("sermonTitle").textContent = "Sermon workspace";
+    document.getElementById("sermonHelp").textContent = "Write it yourself, save a draft, or optionally ask AI to organize only the materials you select.";
+    document.getElementById("sermonName").placeholder = "Sermon title or topic";
+    document.getElementById("sermonDraft").placeholder = "Prepare your sermon here…";
+    document.getElementById("insertSelected").textContent = "Add selected notes";
+    document.getElementById("prepareAi").textContent = "Prepare with AI";
+    document.getElementById("saveSermon").textContent = "Save sermon draft";
 
     footerText.textContent =
       "Scripture texts: World English Bible (WEB) and Reina-Valera 1909 (RV1909)—Public Domain. AI answers may contain mistakes—always check the cited Scripture.";
@@ -976,6 +1307,7 @@ language.addEventListener("change", function(){
   loadBibleBooks().catch(function(error){
     console.error(error);
   });
+  renderStudy();
 
 });
 
@@ -1462,6 +1794,67 @@ async function handleAsk(request,env){
 }
 
 
+async function handleSermon(request,env){
+
+  if(!env.OPENAI_API_KEY){
+    return json({error:"AI key is not configured",code:"ai_not_configured"},503);
+  }
+
+  let body;
+  try{
+    body = await request.json();
+  }
+  catch{
+    return json({error:"Invalid request"},400);
+  }
+
+  const title = String(body?.title || "").trim().slice(0,180);
+  const language = body?.language === "es" ? "es" : "en";
+  const materials = Array.isArray(body?.materials)
+    ? body.materials.slice(0,50).map(function(item){
+        return {
+          type:String(item?.type || "note").slice(0,20),
+          reference:String(item?.reference || "").slice(0,120),
+          text:String(item?.text || "").slice(0,4000),
+          note:String(item?.note || "").slice(0,1600)
+        };
+      })
+    : [];
+
+  if(!title || !materials.length){
+    return json({error:"A title and selected study materials are required"},400);
+  }
+
+  const source = materials.map(function(item,index){
+    return "ITEM " + (index + 1) + " (" + item.type + ")\n" +
+      (item.reference ? "REFERENCE: " + item.reference + "\n" : "") +
+      (item.text ? "BIBLE TEXT: " + item.text + "\n" : "") +
+      (item.note ? "USER NOTE: " + item.note : "");
+  }).join("\n\n");
+
+  const languageInstruction = language === "es"
+    ? "Write in clear, natural Spanish."
+    : "Write in clear, natural English.";
+
+  const sermon = await callOpenAI(
+    env.OPENAI_API_KEY,
+    {
+      model:env.OPENAI_MODEL || "gpt-5-mini",
+      reasoning:{effort:"low"},
+      instructions:
+        "You are a careful Christian sermon-preparation assistant. " +
+        languageInstruction +
+        " Organize only the study materials supplied by the user. Do not invent Bible quotations, references, personal stories, or facts. Keep Bible text distinct from the user's notes. Preserve the user's meaning and do not force one denomination's interpretation. Create an editable sermon draft with a title, central message, introduction, three main points, supporting Scripture from the supplied materials, practical application, conclusion, and optional closing prayer.",
+      input:"SERMON TOPIC: " + title + "\n\nSELECTED STUDY MATERIALS:\n" + source,
+      max_output_tokens:2400
+    }
+  );
+
+  return json({sermon:sermon});
+
+}
+
+
 export default {
 
   async fetch(request,env,ctx){
@@ -1604,6 +1997,13 @@ export default {
           env
         );
 
+      }
+
+      if(
+        request.method === "POST" &&
+        url.pathname === "/api/sermon"
+      ){
+        return await handleSermon(request,env);
       }
 
 

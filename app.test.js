@@ -40,7 +40,7 @@ test("serves an installable iPhone web app shell",async function(){
   assert.equal(manifest.name,"Bible Intelligence");
   assert.equal(manifest.display,"standalone");
   assert.equal(manifest.icons.length,2);
-  assert.match(serviceWorker,/CACHE_NAME = "bible-intelligence-v4"/);
+  assert.match(serviceWorker,/CACHE_NAME = "bible-intelligence-v5"/);
   assert.equal(iconResponse.headers.get("content-type"),"image/png");
   assert.deepEqual(Array.from(icon.slice(0,8)),[137,80,78,71,13,10,26,10]);
 });
@@ -92,6 +92,23 @@ test("shows device-friendly Home Screen installation help",async function(){
   assert.match(html,/display-mode: standalone/);
   assert.match(html,/¿Quieres que Bible Intelligence funcione como una app\?/);
   assert.match(html,/Agregar a pantalla de inicio/);
+});
+
+
+test("includes notes, highlights, bookmarks, reading progress, and optional sermon AI",async function(){
+  const pageResponse = await request("/");
+  const html = await pageResponse.text();
+
+  assert.match(html,/id="studyTab"/);
+  assert.match(html,/id="noteText"/);
+  assert.match(html,/Highlight verse/);
+  assert.match(html,/Bookmark/);
+  assert.match(html,/Bible reading progress/);
+  assert.match(html,/id="sermonDraft"/);
+  assert.match(html,/Prepare with AI/);
+  assert.match(html,/Save sermon draft/);
+  assert.match(html,/bible-intelligence-study-v1/);
+  assert.match(html,/bible-intelligence-reading-v1/);
 });
 
 
@@ -191,6 +208,42 @@ test("grounds an AI answer in locally retrieved WEB passages",async function(){
       "1 John 4:9-10",
       "Ephesians 2:8-9"
     ]);
+  }
+  finally{
+    globalThis.fetch = originalFetch;
+  }
+});
+
+
+test("prepares an optional sermon only from selected study materials",async function(){
+  const originalFetch = globalThis.fetch;
+
+  globalThis.fetch = async function(url,options){
+    assert.equal(url,"https://api.openai.com/v1/responses");
+    const body = JSON.parse(options.body);
+    assert.match(body.input,/John 3:16/);
+    assert.match(body.input,/God loved the world/);
+    assert.match(body.instructions,/Organize only the study materials supplied/);
+    return new Response(JSON.stringify({output_text:"Sermon draft based on John 3:16."}),{
+      status:200,
+      headers:{"content-type":"application/json"}
+    });
+  };
+
+  try{
+    const response = await request("/api/sermon",{
+      method:"POST",
+      headers:{"content-type":"application/json"},
+      body:JSON.stringify({
+        title:"God's love",
+        language:"en",
+        materials:[{type:"highlight",reference:"John 3:16",text:"God loved the world",note:"Grace is offered freely"}]
+      })
+    },{OPENAI_API_KEY:"test-key"});
+    const data = await response.json();
+
+    assert.equal(response.status,200);
+    assert.match(data.sermon,/John 3:16/);
   }
   finally{
     globalThis.fetch = originalFetch;
