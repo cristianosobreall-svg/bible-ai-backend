@@ -328,6 +328,7 @@ textarea{
 .empty-study{padding:12px;border:1px dashed rgba(255,255,255,.4);border-radius:12px;color:rgba(255,255,255,.82)}
 .sermon-draft{min-height:300px!important;line-height:1.55}
 .saved-message{min-height:20px;margin-top:9px;color:#fff2a6;font-weight:bold}
+.folder-bar{display:flex;gap:9px;align-items:end;flex-wrap:wrap;margin:14px 0 18px}.folder-bar>div{flex:1;min-width:180px}.folder-bar select{width:100%;border-radius:12px}.folder-list{display:grid;gap:9px;margin-top:12px}.folder-file{display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;padding:12px;border:1px solid rgba(255,255,255,.35);border-radius:13px;background:rgba(255,255,255,.1)}.folder-file button{margin:0}.folder-file strong{display:block}.folder-file small{color:rgba(255,255,255,.78)}
 
 .error{
   background:#fff1ef;
@@ -546,6 +547,11 @@ Find passage
 <div class="panel hidden" id="studyPanel">
   <h3 class="browser-title" id="studyTitle">My Bible Study</h3>
   <p class="browser-help" id="studyHelp">Keep notes, bookmarks, highlights, reading progress, and sermon drafts on this device.</p>
+  <section class="study-card full">
+    <h3 id="foldersTitle">My folders</h3>
+    <p id="foldersHelp">Create your own folders and choose where sermons and notes are saved.</p>
+    <div class="folder-bar"><div><label for="activeFolder" id="activeFolderLabel">Open folder</label><select id="activeFolder"></select></div><button type="button" class="secondary" id="createFolder">+ New folder</button><button type="button" class="secondary" id="renameFolder">Rename</button><button type="button" class="secondary" id="deleteFolder">Delete</button></div>
+  </section>
   <div class="study-grid">
     <section class="study-card">
       <h3 id="progressTitle">Bible reading progress</h3>
@@ -557,6 +563,7 @@ Find passage
       <h3 id="newNoteTitle">New note</h3>
       <input id="noteReference" placeholder="Reference or topic (optional)">
       <textarea id="noteText" placeholder="Write what you learned, a question, or an idea…"></textarea>
+      <select id="noteFolder" aria-label="Note folder"></select>
       <button type="button" class="secondary" id="saveNote">Save note</button>
     </section>
     <section class="study-card full">
@@ -569,8 +576,14 @@ Find passage
       <p id="sermonHelp">Write it yourself, save a draft, or optionally ask AI to organize only the materials you select.</p>
       <input id="sermonName" placeholder="Sermon title or topic">
       <textarea class="sermon-draft" id="sermonDraft" placeholder="Prepare your sermon here…"></textarea>
+      <select id="sermonFolder" aria-label="Sermon folder"></select>
       <div class="study-actions"><button type="button" class="secondary" id="insertSelected">Add selected notes</button><button type="button" class="secondary" id="prepareAi">Prepare with AI</button><button type="button" class="secondary" id="saveSermon">Save sermon draft</button></div>
       <div class="saved-message" id="studyMessage" aria-live="polite"></div>
+    </section>
+    <section class="study-card full">
+      <h3 id="savedSermonsTitle">Saved sermons</h3>
+      <p id="savedSermonsHelp">Open any sermon to continue editing it.</p>
+      <div class="folder-list" id="savedSermonsList"></div>
     </section>
   </div>
 </div>
@@ -621,6 +634,10 @@ var TOTAL_BIBLE_CHAPTERS = 1189;
 var STUDY_KEY = "bible-intelligence-study-v1";
 var READING_KEY = "bible-intelligence-reading-v1";
 var SERMON_KEY = "bible-intelligence-sermon-v1";
+var FOLDERS_KEY = "bible-intelligence-folders-v1";
+var SERMONS_KEY = "bible-intelligence-sermons-v1";
+var ACTIVE_FOLDER_KEY = "bible-intelligence-active-folder-v1";
+var currentSermonId = null;
 
 function isAppInstalled(){
   return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
@@ -780,6 +797,88 @@ function readLocalJson(key,fallback){
   }
 }
 
+function getFolders(){
+  var folders = readLocalJson(FOLDERS_KEY,[]);
+  if(!folders.length){
+    folders = [{id:"general",name:language.value === "es" ? "General" : "General"}];
+    localStorage.setItem(FOLDERS_KEY,JSON.stringify(folders));
+  }
+  return folders;
+}
+
+function activeFolderId(){
+  var folders = getFolders();
+  var saved = localStorage.getItem(ACTIVE_FOLDER_KEY);
+  return folders.some(function(folder){ return folder.id === saved; }) ? saved : folders[0].id;
+}
+
+function fillFolderMenus(){
+  var folders = getFolders();
+  var active = activeFolderId();
+  ["activeFolder","noteFolder","sermonFolder"].forEach(function(id){
+    var menu = document.getElementById(id);
+    var selected = menu.value || active;
+    menu.innerHTML = "";
+    folders.forEach(function(folder){ addOption(menu,folder.id,"📁 " + folder.name); });
+    menu.value = folders.some(function(folder){ return folder.id === selected; }) ? selected : active;
+  });
+  document.getElementById("activeFolder").value = active;
+}
+
+function folderName(folderId){
+  var folder = getFolders().find(function(item){ return item.id === folderId; });
+  return folder ? folder.name : "General";
+}
+
+document.getElementById("activeFolder").addEventListener("change",function(){
+  localStorage.setItem(ACTIVE_FOLDER_KEY,this.value);
+  document.getElementById("noteFolder").value = this.value;
+  document.getElementById("sermonFolder").value = this.value;
+  renderStudy();
+});
+
+document.getElementById("createFolder").addEventListener("click",function(){
+  var name = prompt(language.value === "es" ? "Nombre de la nueva carpeta:" : "New folder name:");
+  if(!name || !name.trim()){ return; }
+  var folders = getFolders();
+  var id = "folder-" + Date.now() + String(Math.random()).slice(2);
+  folders.push({id:id,name:name.trim().slice(0,60)});
+  localStorage.setItem(FOLDERS_KEY,JSON.stringify(folders));
+  localStorage.setItem(ACTIVE_FOLDER_KEY,id);
+  fillFolderMenus();
+  renderStudy();
+});
+
+document.getElementById("renameFolder").addEventListener("click",function(){
+  var id = activeFolderId();
+  var folders = getFolders();
+  var folder = folders.find(function(item){ return item.id === id; });
+  if(!folder){ return; }
+  var name = prompt(language.value === "es" ? "Nuevo nombre de la carpeta:" : "New folder name:",folder.name);
+  if(!name || !name.trim()){ return; }
+  folder.name = name.trim().slice(0,60);
+  localStorage.setItem(FOLDERS_KEY,JSON.stringify(folders));
+  fillFolderMenus();
+  renderStudy();
+});
+
+document.getElementById("deleteFolder").addEventListener("click",function(){
+  var folders = getFolders();
+  if(folders.length === 1){ alert(language.value === "es" ? "Debes conservar por lo menos una carpeta." : "You must keep at least one folder."); return; }
+  var id = activeFolderId();
+  if(!confirm(language.value === "es" ? "¿Eliminar esta carpeta? Tus archivos pasarán a General." : "Delete this folder? Its files will move to General.")){ return; }
+  folders = folders.filter(function(folder){ return folder.id !== id; });
+  var destination = folders[0].id;
+  localStorage.setItem(FOLDERS_KEY,JSON.stringify(folders));
+  localStorage.setItem(ACTIVE_FOLDER_KEY,destination);
+  var items = getStudyItems().map(function(item){ if(item.folderId === id){ item.folderId = destination; } return item; });
+  localStorage.setItem(STUDY_KEY,JSON.stringify(items));
+  var sermons = readLocalJson(SERMONS_KEY,[]).map(function(item){ if(item.folderId === id){ item.folderId = destination; } return item; });
+  localStorage.setItem(SERMONS_KEY,JSON.stringify(sermons));
+  fillFolderMenus();
+  renderStudy();
+});
+
 function studyWords(){
   return language.value === "es"
     ? {bookmark:"Marcador",highlight:"Resaltado",note:"Nota",empty:"Todavía no has guardado notas, marcadores ni versículos resaltados.",chapters:"de 1,189 capítulos completados",saved:"Guardado en este dispositivo.",select:"Selecciona por lo menos un elemento.",needTopic:"Escribe un título o tema antes de usar la IA.",aiError:"La IA no pudo preparar el sermón ahora. Puedes continuar escribiéndolo manualmente.",readingSaved:"Capítulo marcado como leído.",noteNeeded:"Escribe una nota primero."}
@@ -789,7 +888,7 @@ function studyWords(){
 function getStudyItems(){ return readLocalJson(STUDY_KEY,[]); }
 function saveStudyItems(items){ localStorage.setItem(STUDY_KEY,JSON.stringify(items.slice(0,250))); renderStudy(); }
 
-function addStudyItem(type,referenceText,verseText,noteText){
+function addStudyItem(type,referenceText,verseText,noteText,folderId){
   var items = getStudyItems();
   items.unshift({
     id:String(Date.now()) + String(Math.random()).slice(2),
@@ -798,13 +897,14 @@ function addStudyItem(type,referenceText,verseText,noteText){
     text:String(verseText || "").trim(),
     note:String(noteText || "").trim(),
     language:language.value,
+    folderId:folderId || activeFolderId(),
     createdAt:new Date().toISOString()
   });
   saveStudyItems(items);
 }
 
 function selectedStudyItems(){
-  var items = getStudyItems();
+  var items = getStudyItems().filter(function(item){ return (item.folderId || "general") === activeFolderId(); });
   var selected = [];
   document.querySelectorAll("[data-study-select]").forEach(function(box){
     if(box.checked && items[Number(box.dataset.studySelect)]){
@@ -816,7 +916,8 @@ function selectedStudyItems(){
 
 function renderStudy(){
   var words = studyWords();
-  var items = getStudyItems();
+  fillFolderMenus();
+  var items = getStudyItems().filter(function(item){ return (item.folderId || "general") === activeFolderId(); });
   var list = document.getElementById("studyList");
   list.innerHTML = "";
 
@@ -839,7 +940,7 @@ function renderStudy(){
       var heading = document.createElement("strong");
       heading.textContent = item.reference || (item.type === "note" ? words.note : words[item.type]);
       var kind = document.createElement("small");
-      kind.textContent = words[item.type] || words.note;
+      kind.textContent = (words[item.type] || words.note) + " • 📁 " + folderName(item.folderId || "general");
       body.appendChild(heading);
       body.appendChild(kind);
       if(item.text){ var verse = document.createElement("p"); verse.textContent = item.text; body.appendChild(verse); }
@@ -849,7 +950,7 @@ function renderStudy(){
       remove.className = "study-delete";
       remove.textContent = "×";
       remove.setAttribute("aria-label","Delete");
-      remove.addEventListener("click",function(){ var updated=getStudyItems(); updated.splice(index,1); saveStudyItems(updated); });
+      remove.addEventListener("click",function(){ var updated=getStudyItems().filter(function(saved){ return saved.id !== item.id; }); saveStudyItems(updated); });
       row.appendChild(check); row.appendChild(body); row.appendChild(remove); list.appendChild(row);
     });
   }
@@ -858,6 +959,7 @@ function renderStudy(){
   var completed = Object.keys(reading).filter(function(key){ return reading[key]; }).length;
   document.getElementById("progressText").textContent = completed + " " + words.chapters;
   document.getElementById("progressFill").style.width = Math.min(100,completed / TOTAL_BIBLE_CHAPTERS * 100) + "%";
+  renderSavedSermons();
 }
 
 function currentChapterIdentity(){
@@ -888,7 +990,7 @@ document.getElementById("saveNote").addEventListener("click",function(){
     document.getElementById("studyMessage").textContent = studyWords().noteNeeded;
     return;
   }
-  addStudyItem("note",document.getElementById("noteReference").value,"",noteText.value);
+  addStudyItem("note",document.getElementById("noteReference").value,"",noteText.value,document.getElementById("noteFolder").value);
   document.getElementById("noteReference").value = "";
   noteText.value = "";
   document.getElementById("studyMessage").textContent = studyWords().saved;
@@ -905,9 +1007,45 @@ document.getElementById("insertSelected").addEventListener("click",function(){
   document.getElementById("studyMessage").textContent = studyWords().saved;
 });
 
+function getSavedSermons(){ return readLocalJson(SERMONS_KEY,[]); }
+
+function renderSavedSermons(){
+  var list = document.getElementById("savedSermonsList");
+  var sermons = getSavedSermons().filter(function(item){ return (item.folderId || "general") === activeFolderId(); });
+  list.innerHTML = "";
+  if(!sermons.length){
+    var empty = document.createElement("div");
+    empty.className = "empty-study";
+    empty.textContent = language.value === "es" ? "No hay sermones guardados en esta carpeta." : "No sermons saved in this folder.";
+    list.appendChild(empty);
+    return;
+  }
+  sermons.forEach(function(sermon){
+    var row = document.createElement("div"); row.className = "folder-file";
+    var info = document.createElement("div");
+    var title = document.createElement("strong"); title.textContent = sermon.title || (language.value === "es" ? "Sermón sin título" : "Untitled sermon");
+    var detail = document.createElement("small"); detail.textContent = "📁 " + folderName(sermon.folderId || "general");
+    info.appendChild(title); info.appendChild(detail);
+    var open = document.createElement("button"); open.type = "button"; open.className = "secondary"; open.textContent = language.value === "es" ? "Abrir" : "Open";
+    open.addEventListener("click",function(){ currentSermonId=sermon.id; document.getElementById("sermonName").value=sermon.title || ""; document.getElementById("sermonDraft").value=sermon.draft || ""; document.getElementById("sermonFolder").value=sermon.folderId || activeFolderId(); document.getElementById("sermonDraft").scrollIntoView({behavior:"smooth",block:"center"}); });
+    var remove = document.createElement("button"); remove.type = "button"; remove.className = "secondary"; remove.textContent = "×"; remove.setAttribute("aria-label","Delete sermon");
+    remove.addEventListener("click",function(){ if(!confirm(language.value === "es" ? "¿Eliminar este sermón?" : "Delete this sermon?")){ return; } localStorage.setItem(SERMONS_KEY,JSON.stringify(getSavedSermons().filter(function(item){ return item.id !== sermon.id; }))); if(currentSermonId===sermon.id){currentSermonId=null;} renderSavedSermons(); });
+    row.appendChild(info); row.appendChild(open); row.appendChild(remove); list.appendChild(row);
+  });
+}
+
 document.getElementById("saveSermon").addEventListener("click",function(){
-  localStorage.setItem(SERMON_KEY,JSON.stringify({title:document.getElementById("sermonName").value,draft:document.getElementById("sermonDraft").value,updatedAt:new Date().toISOString()}));
+  var title = document.getElementById("sermonName").value.trim();
+  var draft = document.getElementById("sermonDraft").value;
+  if(!title){ document.getElementById("studyMessage").textContent = studyWords().needTopic; return; }
+  var sermons = getSavedSermons();
+  var existing = sermons.find(function(item){ return item.id === currentSermonId; });
+  if(existing){ existing.title=title; existing.draft=draft; existing.folderId=document.getElementById("sermonFolder").value; existing.updatedAt=new Date().toISOString(); }
+  else{ currentSermonId="sermon-"+Date.now()+String(Math.random()).slice(2); sermons.unshift({id:currentSermonId,title:title,draft:draft,folderId:document.getElementById("sermonFolder").value || activeFolderId(),createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()}); }
+  localStorage.setItem(SERMONS_KEY,JSON.stringify(sermons.slice(0,250)));
+  localStorage.setItem(SERMON_KEY,JSON.stringify({title:title,draft:draft,updatedAt:new Date().toISOString()}));
   document.getElementById("studyMessage").textContent = studyWords().saved;
+  renderSavedSermons();
 });
 
 document.getElementById("prepareAi").addEventListener("click",async function(){
@@ -931,8 +1069,13 @@ document.getElementById("prepareAi").addEventListener("click",async function(){
 });
 
 var savedSermon = readLocalJson(SERMON_KEY,{});
+if(savedSermon.title && !getSavedSermons().length){
+  currentSermonId = "sermon-legacy";
+  localStorage.setItem(SERMONS_KEY,JSON.stringify([{id:currentSermonId,title:savedSermon.title,draft:savedSermon.draft || "",folderId:activeFolderId(),createdAt:savedSermon.updatedAt || new Date().toISOString(),updatedAt:savedSermon.updatedAt || new Date().toISOString()}]));
+}
 document.getElementById("sermonName").value = savedSermon.title || "";
 document.getElementById("sermonDraft").value = savedSermon.draft || "";
+fillFolderMenus();
 renderStudy();
 
 
@@ -1222,6 +1365,12 @@ language.addEventListener("change", function(){
     document.getElementById("manualDivider").textContent = "o escribe una referencia";
     document.getElementById("studyTitle").textContent = "Mi estudio bíblico";
     document.getElementById("studyHelp").textContent = "Guarda notas, marcadores, textos resaltados, progreso de lectura y borradores de sermones en este dispositivo.";
+    document.getElementById("foldersTitle").textContent = "Mis carpetas";
+    document.getElementById("foldersHelp").textContent = "Crea tus propias carpetas y elige dónde guardar sermones y notas.";
+    document.getElementById("activeFolderLabel").textContent = "Abrir carpeta";
+    document.getElementById("createFolder").textContent = "+ Nueva carpeta";
+    document.getElementById("renameFolder").textContent = "Cambiar nombre";
+    document.getElementById("deleteFolder").textContent = "Eliminar";
     document.getElementById("progressTitle").textContent = "Progreso de lectura bíblica";
     document.getElementById("markCurrentRead").textContent = "Marcar capítulo actual como leído";
     document.getElementById("clearReading").textContent = "Reiniciar progreso";
@@ -1238,6 +1387,8 @@ language.addEventListener("change", function(){
     document.getElementById("insertSelected").textContent = "Agregar notas seleccionadas";
     document.getElementById("prepareAi").textContent = "Preparar con IA";
     document.getElementById("saveSermon").textContent = "Guardar borrador";
+    document.getElementById("savedSermonsTitle").textContent = "Sermones guardados";
+    document.getElementById("savedSermonsHelp").textContent = "Abre cualquier sermón para continuar editándolo.";
 
     footerText.textContent =
       "Texto bíblico: Reina-Valera 1909 (RV1909)—Dominio Público. Las respuestas de IA pueden contener errores; comprueba siempre las Escrituras citadas.";
@@ -1282,6 +1433,12 @@ language.addEventListener("change", function(){
     document.getElementById("manualDivider").textContent = "or type a reference";
     document.getElementById("studyTitle").textContent = "My Bible Study";
     document.getElementById("studyHelp").textContent = "Keep notes, bookmarks, highlights, reading progress, and sermon drafts on this device.";
+    document.getElementById("foldersTitle").textContent = "My folders";
+    document.getElementById("foldersHelp").textContent = "Create your own folders and choose where sermons and notes are saved.";
+    document.getElementById("activeFolderLabel").textContent = "Open folder";
+    document.getElementById("createFolder").textContent = "+ New folder";
+    document.getElementById("renameFolder").textContent = "Rename";
+    document.getElementById("deleteFolder").textContent = "Delete";
     document.getElementById("progressTitle").textContent = "Bible reading progress";
     document.getElementById("markCurrentRead").textContent = "Mark current chapter read";
     document.getElementById("clearReading").textContent = "Reset progress";
@@ -1298,6 +1455,8 @@ language.addEventListener("change", function(){
     document.getElementById("insertSelected").textContent = "Add selected notes";
     document.getElementById("prepareAi").textContent = "Prepare with AI";
     document.getElementById("saveSermon").textContent = "Save sermon draft";
+    document.getElementById("savedSermonsTitle").textContent = "Saved sermons";
+    document.getElementById("savedSermonsHelp").textContent = "Open any sermon to continue editing it.";
 
     footerText.textContent =
       "Scripture texts: World English Bible (WEB) and Reina-Valera 1909 (RV1909)—Public Domain. AI answers may contain mistakes—always check the cited Scripture.";
