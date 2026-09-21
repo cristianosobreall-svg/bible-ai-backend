@@ -40,7 +40,7 @@ test("serves an installable iPhone web app shell",async function(){
   assert.equal(manifest.name,"Bible Intelligence");
   assert.equal(manifest.display,"standalone");
   assert.equal(manifest.icons.length,2);
-  assert.match(serviceWorker,/CACHE_NAME = "bible-intelligence-v5"/);
+  assert.match(serviceWorker,/CACHE_NAME = "bible-intelligence-v6"/);
   assert.equal(iconResponse.headers.get("content-type"),"image/png");
   assert.deepEqual(Array.from(icon.slice(0,8)),[137,80,78,71,13,10,26,10]);
 });
@@ -101,14 +101,30 @@ test("includes notes, highlights, bookmarks, reading progress, and optional serm
 
   assert.match(html,/id="studyTab"/);
   assert.match(html,/id="noteText"/);
-  assert.match(html,/Highlight verse/);
+  assert.match(html,/Highlight in /);
   assert.match(html,/Bookmark/);
+  assert.match(html,/id="reminderTime"/);
+  assert.match(html,/id="saveReminder"/);
   assert.match(html,/Bible reading progress/);
   assert.match(html,/id="sermonDraft"/);
   assert.match(html,/Prepare with AI/);
   assert.match(html,/Save sermon draft/);
   assert.match(html,/bible-intelligence-study-v1/);
   assert.match(html,/bible-intelligence-reading-v1/);
+});
+
+
+test("ships browser JavaScript without syntax errors",async function(){
+  const pageResponse = await request("/");
+  const html = await pageResponse.text();
+  const scripts = Array.from(html.matchAll(/<script>([\s\S]*?)<\/script>/g),function(match){
+    return match[1];
+  });
+
+  assert.ok(scripts.length > 0);
+  scripts.forEach(function(script){
+    assert.doesNotThrow(function(){ new Function(script); });
+  });
 });
 
 

@@ -1355,12 +1355,12 @@ verseButton.addEventListener("click", async function(){
 
     var rawText = String(data.text || "").trim();
     var parsedVerses = [];
-    rawText.split(/\n+/).forEach(function(line){
-      var match = line.trim().match(/^(\d+)[\s.)-]+(.+)$/);
+    rawText.split(/\\n+/).forEach(function(line){
+      var match = line.trim().match(/^(\\d+)[\\s.)-]+(.+)$/);
       if(match){ parsedVerses.push({number:match[1],text:match[2].trim()}); }
     });
     if(parsedVerses.length < 2){
-      var chosenNumber = verseSelect.value || ((String(data.reference || "").match(/:(\d+)/) || [])[1]) || "";
+      var chosenNumber = verseSelect.value || ((String(data.reference || "").match(/:(\\d+)/) || [])[1]) || "";
       parsedVerses = [{number:chosenNumber,text:rawText}];
     }
 
