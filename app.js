@@ -305,6 +305,24 @@ textarea{
   box-shadow:0 12px 34px rgba(0,12,22,.22);
 }
 .answer.highlighted{background:#fff3a7;box-shadow:0 0 0 3px rgba(255,220,74,.5),0 12px 34px rgba(0,12,22,.22)}
+.verse-list{display:grid;gap:8px;margin-top:12px}
+.verse-line{width:100%;display:flex;align-items:flex-start;gap:9px;text-align:left;border:1px solid transparent;background:transparent;color:var(--ink);border-radius:10px;padding:8px;font:inherit;line-height:1.55;cursor:pointer}
+.verse-line:hover,.verse-line:focus-visible{background:#f7f0dc;border-color:#d8caa5}
+.verse-line.selected{background:#e8f1ec;border-color:#537e69;box-shadow:0 0 0 2px rgba(83,126,105,.18)}
+.verse-number{font-size:12px;font-weight:bold;color:#7a611a;min-width:22px;padding-top:3px}
+.verse-line.highlight-yellow{background:#fff3a7}.verse-line.highlight-blue{background:#cfe8ff}.verse-line.highlight-green{background:#d7f3d2}.verse-line.highlight-pink{background:#ffd8e8}
+.verse-tools{margin-top:14px;padding-top:14px;border-top:1px solid #d8caa5}
+.verse-tools.hidden{display:none}
+.verse-tools-title{display:block;margin-bottom:9px}
+.color-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.color-choice{width:36px;height:36px;border-radius:50%;border:2px solid white;box-shadow:0 0 0 1px #9b8e6a;position:relative}
+.color-choice[aria-pressed="true"]{box-shadow:0 0 0 3px #315c4b}
+.color-choice.yellow{background:#ffe66f}.color-choice.blue{background:#9fd1ff}.color-choice.green{background:#aee6a5}.color-choice.pink{background:#ffb7d2}
+.reminder-form{display:grid;grid-template-columns:minmax(145px,.7fr) minmax(180px,1.3fr);gap:10px;align-items:end}
+.reminder-form label{display:block;margin-bottom:5px;color:rgba(255,255,255,.84);font-size:14px}
+.reminder-status{margin:10px 0 0!important;color:#fff2a6!important;font-weight:bold}
+.reminder-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+@media(max-width:680px){.reminder-form{grid-template-columns:1fr}.verse-line{padding:10px 6px}}
 .passage-actions,.study-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
 .secondary{border:1px solid var(--glass-line);background:var(--glass-strong);color:white;border-radius:11px;padding:10px 12px;font-weight:bold;box-shadow:var(--glass-shadow)}
 .answer .secondary{color:var(--forest);background:#f7f0dc;border-color:#d8caa5;box-shadow:none}
@@ -560,6 +578,16 @@ Find passage
       <div class="study-actions"><button type="button" class="secondary" id="markCurrentRead">Mark current chapter read</button><button type="button" class="secondary" id="clearReading">Reset progress</button></div>
     </section>
     <section class="study-card">
+      <h3 id="reminderTitle">Bible reading reminder</h3>
+      <p id="reminderHelp">Choose the time you want Bible Intelligence to remind you each day.</p>
+      <div class="reminder-form">
+        <div><label for="reminderTime" id="reminderTimeLabel">Reminder time</label><input id="reminderTime" type="time" value="08:00"></div>
+        <div><label for="reminderReference" id="reminderReferenceLabel">Reading or message</label><input id="reminderReference" placeholder="Read today’s Bible chapter"></div>
+      </div>
+      <div class="reminder-actions"><button type="button" class="secondary" id="saveReminder">🔔 Save reminder</button><button type="button" class="secondary" id="disableReminder">Turn off</button><button type="button" class="secondary" id="testReminder">Test notification</button></div>
+      <p class="reminder-status" id="reminderStatus" aria-live="polite"></p>
+    </section>
+    <section class="study-card">
       <h3 id="newNoteTitle">New note</h3>
       <input id="noteReference" placeholder="Reference or topic (optional)">
       <textarea id="noteText" placeholder="Write what you learned, a question, or an idea…"></textarea>
@@ -637,6 +665,10 @@ var SERMON_KEY = "bible-intelligence-sermon-v1";
 var FOLDERS_KEY = "bible-intelligence-folders-v1";
 var SERMONS_KEY = "bible-intelligence-sermons-v1";
 var ACTIVE_FOLDER_KEY = "bible-intelligence-active-folder-v1";
+var REMINDER_KEY = "bible-intelligence-reminder-v1";
+var REMINDER_LAST_KEY = "bible-intelligence-reminder-last-v1";
+var reminderTimer = null;
+var selectedVerse = null;
 var currentSermonId = null;
 
 function isAppInstalled(){
@@ -879,6 +911,76 @@ document.getElementById("deleteFolder").addEventListener("click",function(){
   renderStudy();
 });
 
+function getReminder(){ return readLocalJson(REMINDER_KEY,{enabled:false,time:"08:00",message:""}); }
+
+function reminderWords(){
+  return language.value === "es"
+    ? {off:"El recordatorio está apagado.",saved:"Recordatorio diario guardado para las ",denied:"Las notificaciones están bloqueadas. Actívalas en la configuración de tu teléfono.",unsupported:"Este dispositivo no permite notificaciones desde la web.",test:"Esta es tu prueba de recordatorio para leer la Biblia.",defaultMessage:"Es hora de leer la Biblia."}
+    : {off:"The reminder is turned off.",saved:"Daily reminder saved for ",denied:"Notifications are blocked. Turn them on in your phone settings.",unsupported:"This device does not support web notifications.",test:"This is your test reminder to read the Bible.",defaultMessage:"It is time to read the Bible."};
+}
+
+function updateReminderUi(){
+  var saved = getReminder();
+  var words = reminderWords();
+  document.getElementById("reminderTime").value = saved.time || "08:00";
+  document.getElementById("reminderReference").value = saved.message || "";
+  document.getElementById("reminderStatus").textContent = saved.enabled ? words.saved + (saved.time || "08:00") + "." : words.off;
+}
+
+async function showReadingNotification(message,isTest){
+  var words = reminderWords();
+  var body = message || (isTest ? words.test : words.defaultMessage);
+  if(!("Notification" in window)){ document.getElementById("reminderStatus").textContent = words.unsupported; return false; }
+  var permission = Notification.permission;
+  if(permission === "default"){ permission = await Notification.requestPermission(); }
+  if(permission !== "granted"){ document.getElementById("reminderStatus").textContent = words.denied; return false; }
+  try{
+    if("serviceWorker" in navigator){
+      var registration = await navigator.serviceWorker.ready;
+      await registration.showNotification("Bible Intelligence",{body:body,icon:"/icon-192.png",badge:"/icon-192.png",tag:"bible-reading-reminder",renotify:true,data:{url:"/"}});
+    } else { new Notification("Bible Intelligence",{body:body,icon:"/icon-192.png"}); }
+    return true;
+  } catch(error){ new Notification("Bible Intelligence",{body:body,icon:"/icon-192.png"}); return true; }
+}
+
+function checkReadingReminder(){
+  var saved = getReminder();
+  if(!saved.enabled || !saved.time){ return; }
+  var now = new Date();
+  var hours = String(now.getHours()).padStart(2,"0");
+  var minutes = String(now.getMinutes()).padStart(2,"0");
+  var dayKey = now.getFullYear()+"-"+String(now.getMonth()+1).padStart(2,"0")+"-"+String(now.getDate()).padStart(2,"0");
+  if(hours+":"+minutes === saved.time && localStorage.getItem(REMINDER_LAST_KEY) !== dayKey){
+    localStorage.setItem(REMINDER_LAST_KEY,dayKey);
+    showReadingNotification(saved.message,false);
+  }
+}
+
+document.getElementById("saveReminder").addEventListener("click",async function(){
+  var time = document.getElementById("reminderTime").value || "08:00";
+  var message = document.getElementById("reminderReference").value.trim();
+  var allowed = await showReadingNotification(message,true);
+  if(!allowed){ return; }
+  localStorage.setItem(REMINDER_KEY,JSON.stringify({enabled:true,time:time,message:message}));
+  localStorage.removeItem(REMINDER_LAST_KEY);
+  updateReminderUi();
+});
+
+document.getElementById("disableReminder").addEventListener("click",function(){
+  var saved = getReminder(); saved.enabled = false;
+  localStorage.setItem(REMINDER_KEY,JSON.stringify(saved));
+  updateReminderUi();
+});
+
+document.getElementById("testReminder").addEventListener("click",function(){
+  showReadingNotification(document.getElementById("reminderReference").value.trim(),true);
+});
+
+updateReminderUi();
+checkReadingReminder();
+reminderTimer = setInterval(checkReadingReminder,30000);
+document.addEventListener("visibilitychange",function(){ if(!document.hidden){ checkReadingReminder(); } });
+
 function studyWords(){
   return language.value === "es"
     ? {bookmark:"Marcador",highlight:"Resaltado",note:"Nota",empty:"Todavía no has guardado notas, marcadores ni versículos resaltados.",chapters:"de 1,189 capítulos completados",saved:"Guardado en este dispositivo.",select:"Selecciona por lo menos un elemento.",needTopic:"Escribe un título o tema antes de usar la IA.",aiError:"La IA no pudo preparar el sermón ahora. Puedes continuar escribiéndolo manualmente.",readingSaved:"Capítulo marcado como leído.",noteNeeded:"Escribe una nota primero."}
@@ -888,7 +990,7 @@ function studyWords(){
 function getStudyItems(){ return readLocalJson(STUDY_KEY,[]); }
 function saveStudyItems(items){ localStorage.setItem(STUDY_KEY,JSON.stringify(items.slice(0,250))); renderStudy(); }
 
-function addStudyItem(type,referenceText,verseText,noteText,folderId){
+function addStudyItem(type,referenceText,verseText,noteText,folderId,color){
   var items = getStudyItems();
   items.unshift({
     id:String(Date.now()) + String(Math.random()).slice(2),
@@ -898,6 +1000,7 @@ function addStudyItem(type,referenceText,verseText,noteText,folderId){
     note:String(noteText || "").trim(),
     language:language.value,
     folderId:folderId || activeFolderId(),
+    color:color || "",
     createdAt:new Date().toISOString()
   });
   saveStudyItems(items);
@@ -1248,21 +1351,76 @@ verseButton.addEventListener("click", async function(){
     heading.textContent = data.reference;
 
     var passage = document.createElement("div");
-    passage.style.marginTop = "10px";
-    passage.textContent = data.text;
+    passage.className = "verse-list";
 
-    answerBox.appendChild(heading);
-    answerBox.appendChild(passage);
-
-    currentPassage = data;
+    var rawText = String(data.text || "").trim();
+    var parsedVerses = [];
+    rawText.split(/\n+/).forEach(function(line){
+      var match = line.trim().match(/^(\d+)[\s.)-]+(.+)$/);
+      if(match){ parsedVerses.push({number:match[1],text:match[2].trim()}); }
+    });
+    if(parsedVerses.length < 2){
+      var chosenNumber = verseSelect.value || ((String(data.reference || "").match(/:(\d+)/) || [])[1]) || "";
+      parsedVerses = [{number:chosenNumber,text:rawText}];
+    }
 
     var passageNote = document.createElement("textarea");
     passageNote.className = "passage-note";
-    passageNote.placeholder = language.value === "es" ? "Escribe una nota sobre este pasaje…" : "Write a note about this passage…";
+    passageNote.placeholder = language.value === "es" ? "Escribe tu nota sobre este versículo…" : "Write your note about this verse…";
+
+    var verseTools = document.createElement("div");
+    verseTools.className = "verse-tools hidden";
+    var toolsTitle = document.createElement("strong");
+    toolsTitle.className = "verse-tools-title";
+    var colorRow = document.createElement("div");
+    colorRow.className = "color-row";
+    var selectedColor = "yellow";
+
+    function selectedReference(){
+      var base = String(data.reference || reference.value || "").replace(/:(\d+)(?:-\d+)?$/,"");
+      return selectedVerse && selectedVerse.number ? base + ":" + selectedVerse.number : String(data.reference || reference.value || "");
+    }
+
+    function chooseVerse(item,button){
+      passage.querySelectorAll(".verse-line").forEach(function(line){ line.classList.remove("selected"); });
+      button.classList.add("selected");
+      selectedVerse = item;
+      toolsTitle.textContent = (language.value === "es" ? "Versículo seleccionado: " : "Selected verse: ") + selectedReference();
+      verseTools.classList.remove("hidden");
+      passageNote.focus();
+    }
+
+    parsedVerses.forEach(function(item){
+      var verseButtonEl = document.createElement("button");
+      verseButtonEl.type = "button";
+      verseButtonEl.className = "verse-line";
+      var numberEl = document.createElement("span");
+      numberEl.className = "verse-number";
+      numberEl.textContent = item.number || "•";
+      var textEl = document.createElement("span");
+      textEl.textContent = item.text;
+      verseButtonEl.appendChild(numberEl);
+      verseButtonEl.appendChild(textEl);
+      verseButtonEl.addEventListener("click",function(){ chooseVerse(item,verseButtonEl); });
+      passage.appendChild(verseButtonEl);
+    });
+
+    ["yellow","blue","green","pink"].forEach(function(color){
+      var colorButton = document.createElement("button");
+      colorButton.type = "button";
+      colorButton.className = "color-choice " + color;
+      colorButton.setAttribute("aria-label",(language.value === "es" ? "Resaltar en " : "Highlight in ") + color);
+      colorButton.setAttribute("aria-pressed",color === selectedColor ? "true" : "false");
+      colorButton.addEventListener("click",function(){
+        selectedColor = color;
+        colorRow.querySelectorAll(".color-choice").forEach(function(choice){ choice.setAttribute("aria-pressed","false"); });
+        colorButton.setAttribute("aria-pressed","true");
+      });
+      colorRow.appendChild(colorButton);
+    });
 
     var passageActions = document.createElement("div");
     passageActions.className = "passage-actions";
-
     function passageAction(label,action){
       var button = document.createElement("button");
       button.type = "button";
@@ -1273,24 +1431,24 @@ verseButton.addEventListener("click", async function(){
       return button;
     }
 
-    passageAction(language.value === "es" ? "🔖 Guardar marcador" : "🔖 Bookmark",function(){
-      addStudyItem("bookmark",data.reference,data.text,passageNote.value);
-      this.textContent = language.value === "es" ? "✓ Guardado" : "✓ Saved";
-    });
-
-    passageAction(language.value === "es" ? "🖍️ Resaltar versículo" : "🖍️ Highlight verse",function(){
-      addStudyItem("highlight",data.reference,data.text,passageNote.value);
-      answerBox.classList.add("highlighted");
+    passageAction(language.value === "es" ? "🖍️ Resaltar" : "🖍️ Highlight",function(){
+      if(!selectedVerse){ return; }
+      var selectedLine = passage.querySelector(".verse-line.selected");
+      if(selectedLine){ selectedLine.className = "verse-line selected highlight-" + selectedColor; }
+      addStudyItem("highlight",selectedReference(),selectedVerse.text,passageNote.value,activeFolderId(),selectedColor);
       this.textContent = language.value === "es" ? "✓ Resaltado" : "✓ Highlighted";
     });
 
-    passageAction(language.value === "es" ? "📝 Guardar nota" : "📝 Save note",function(){
-      if(!passageNote.value.trim()){
-        passageNote.focus();
-        return;
-      }
-      addStudyItem("note",data.reference,data.text,passageNote.value);
-      this.textContent = language.value === "es" ? "✓ Nota guardada" : "✓ Note saved";
+    passageAction(language.value === "es" ? "🔖 Marcador" : "🔖 Bookmark",function(){
+      if(!selectedVerse){ return; }
+      addStudyItem("bookmark",selectedReference(),selectedVerse.text,passageNote.value);
+      this.textContent = language.value === "es" ? "✓ Guardado" : "✓ Saved";
+    });
+
+    passageAction(language.value === "es" ? "📝 Enviar a notas" : "📝 Send to notes",function(){
+      if(!selectedVerse){ return; }
+      addStudyItem("note",selectedReference(),selectedVerse.text,passageNote.value);
+      this.textContent = language.value === "es" ? "✓ Enviado a notas" : "✓ Sent to notes";
     });
 
     passageAction(language.value === "es" ? "✓ Marcar capítulo leído" : "✓ Mark chapter read",function(){
@@ -1298,8 +1456,14 @@ verseButton.addEventListener("click", async function(){
       this.textContent = language.value === "es" ? "✓ Capítulo leído" : "✓ Chapter read";
     });
 
-    answerBox.appendChild(passageNote);
-    answerBox.appendChild(passageActions);
+    verseTools.appendChild(toolsTitle);
+    verseTools.appendChild(colorRow);
+    verseTools.appendChild(passageNote);
+    verseTools.appendChild(passageActions);
+    answerBox.appendChild(heading);
+    answerBox.appendChild(passage);
+    answerBox.appendChild(verseTools);
+    currentPassage = data;
 
     passageResult.appendChild(answerBox);
 
@@ -1374,6 +1538,14 @@ language.addEventListener("change", function(){
     document.getElementById("progressTitle").textContent = "Progreso de lectura bíblica";
     document.getElementById("markCurrentRead").textContent = "Marcar capítulo actual como leído";
     document.getElementById("clearReading").textContent = "Reiniciar progreso";
+    document.getElementById("reminderTitle").textContent = "Recordatorio de lectura bíblica";
+    document.getElementById("reminderHelp").textContent = "Elige la hora en que Bible Intelligence debe recordarte leer cada día.";
+    document.getElementById("reminderTimeLabel").textContent = "Hora del recordatorio";
+    document.getElementById("reminderReferenceLabel").textContent = "Lectura o mensaje";
+    document.getElementById("reminderReference").placeholder = "Lee el capítulo bíblico de hoy";
+    document.getElementById("saveReminder").textContent = "🔔 Guardar recordatorio";
+    document.getElementById("disableReminder").textContent = "Apagar";
+    document.getElementById("testReminder").textContent = "Probar notificación";
     document.getElementById("newNoteTitle").textContent = "Nueva nota";
     document.getElementById("noteReference").placeholder = "Referencia o tema (opcional)";
     document.getElementById("noteText").placeholder = "Escribe lo que aprendiste, una pregunta o una idea…";
@@ -1442,6 +1614,14 @@ language.addEventListener("change", function(){
     document.getElementById("progressTitle").textContent = "Bible reading progress";
     document.getElementById("markCurrentRead").textContent = "Mark current chapter read";
     document.getElementById("clearReading").textContent = "Reset progress";
+    document.getElementById("reminderTitle").textContent = "Bible reading reminder";
+    document.getElementById("reminderHelp").textContent = "Choose the time you want Bible Intelligence to remind you each day.";
+    document.getElementById("reminderTimeLabel").textContent = "Reminder time";
+    document.getElementById("reminderReferenceLabel").textContent = "Reading or message";
+    document.getElementById("reminderReference").placeholder = "Read today’s Bible chapter";
+    document.getElementById("saveReminder").textContent = "🔔 Save reminder";
+    document.getElementById("disableReminder").textContent = "Turn off";
+    document.getElementById("testReminder").textContent = "Test notification";
     document.getElementById("newNoteTitle").textContent = "New note";
     document.getElementById("noteReference").placeholder = "Reference or topic (optional)";
     document.getElementById("noteText").placeholder = "Write what you learned, a question, or an idea…";
@@ -1463,6 +1643,7 @@ language.addEventListener("change", function(){
 
   }
 
+  updateReminderUi();
   loadBibleBooks().catch(function(error){
     console.error(error);
   });
