@@ -311,9 +311,10 @@ textarea{
 .verse-line.selected{background:#e8f1ec;border-color:#537e69;box-shadow:0 0 0 2px rgba(83,126,105,.18)}
 .verse-number{font-size:12px;font-weight:bold;color:#7a611a;min-width:22px;padding-top:3px}
 .verse-line.highlight-yellow{background:#fff3a7}.verse-line.highlight-blue{background:#cfe8ff}.verse-line.highlight-green{background:#d7f3d2}.verse-line.highlight-pink{background:#ffd8e8}
-.verse-tools{margin-top:14px;padding-top:14px;border-top:1px solid #d8caa5}
+.verse-tools{margin:4px 0 10px;padding:14px;border:1px solid #d8caa5;border-radius:14px;background:#fffdf7;box-shadow:0 12px 28px rgba(28,45,37,.18);animation:verse-tools-pop .18s ease-out}
 .verse-tools.hidden{display:none}
 .verse-tools-title{display:block;margin-bottom:9px}
+@keyframes verse-tools-pop{from{opacity:0;transform:translateY(-7px) scale(.985)}to{opacity:1;transform:translateY(0) scale(1)}}
 .color-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
 .color-choice{width:36px;height:36px;border-radius:50%;border:2px solid white;box-shadow:0 0 0 1px #9b8e6a;position:relative}
 .color-choice[aria-pressed="true"]{box-shadow:0 0 0 3px #315c4b}
@@ -1386,8 +1387,12 @@ verseButton.addEventListener("click", async function(){
       button.classList.add("selected");
       selectedVerse = item;
       toolsTitle.textContent = (language.value === "es" ? "Versículo seleccionado: " : "Selected verse: ") + selectedReference();
+      button.insertAdjacentElement("afterend",verseTools);
       verseTools.classList.remove("hidden");
-      passageNote.focus();
+      passageNote.focus({preventScroll:true});
+      window.requestAnimationFrame(function(){
+        verseTools.scrollIntoView({behavior:"smooth",block:"nearest"});
+      });
     }
 
     parsedVerses.forEach(function(item){
