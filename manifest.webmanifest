@@ -4,6 +4,7 @@
   "description": "A bilingual Bible study app with Scripture-grounded AI answers.",
   "lang": "en",
   "start_url": "/",
+  "id": "/",
   "scope": "/",
   "display": "standalone",
   "background_color": "#081a22",
