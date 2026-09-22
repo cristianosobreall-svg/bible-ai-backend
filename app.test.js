@@ -46,6 +46,23 @@ test("serves an installable iPhone web app shell",async function(){
 });
 
 
+test("connects reminders to the OneSignal web push SDK",async function(){
+  const pageResponse = await request("/");
+  const html = await pageResponse.text();
+  const workerResponse = await request("/push/onesignal/OneSignalSDKWorker.js");
+  const worker = await workerResponse.text();
+
+  assert.equal(workerResponse.status,200);
+  assert.equal(workerResponse.headers.get("content-type"),"text/javascript; charset=utf-8");
+  assert.match(worker,/OneSignalSDK\.sw\.js/);
+  assert.match(html,/OneSignalSDK\.page\.js/);
+  assert.match(html,/657f4101-05f2-40e0-a0ba-5584cc2a185a/);
+  assert.match(html,/serviceWorkerPath:"push\/onesignal\/OneSignalSDKWorker\.js"/);
+  assert.match(html,/OneSignal\.User\.PushSubscription\.optIn/);
+  assert.match(html,/bible_reminder_timezone/);
+});
+
+
 test("serves background choices and Bible browser metadata",async function(){
   const pageResponse = await request("/");
   const html = await pageResponse.text();
