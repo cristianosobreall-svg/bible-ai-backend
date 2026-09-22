@@ -932,8 +932,8 @@ function getReminder(){ return readLocalJson(REMINDER_KEY,{enabled:false,time:"0
 
 function reminderWords(){
   return language.value === "es"
-    ? {off:"El recordatorio está apagado.",saved:"Recordatorio diario guardado para las ",denied:"Las notificaciones están bloqueadas. Actívalas en la configuración de tu teléfono.",unsupported:"Este dispositivo no permite notificaciones push.",ready:"Las notificaciones de OneSignal están activadas.",error:"No se pudo conectar con OneSignal. Inténtalo de nuevo."}
-    : {off:"The reminder is turned off.",saved:"Daily reminder saved for ",denied:"Notifications are blocked. Turn them on in your phone settings.",unsupported:"This device does not support push notifications.",ready:"OneSignal notifications are enabled.",error:"Could not connect to OneSignal. Please try again."};
+    ? {off:"El recordatorio está apagado.",saved:"Recordatorio diario guardado para las ",denied:"Las notificaciones están bloqueadas. Actívalas en la configuración de tu teléfono.",unsupported:"Este dispositivo no permite notificaciones push.",connecting:"Activando las notificaciones…",ready:"Las notificaciones de OneSignal están activadas.",error:"No se pudo conectar con OneSignal. Cierra y abre la app e inténtalo otra vez."}
+    : {off:"The reminder is turned off.",saved:"Daily reminder saved for ",denied:"Notifications are blocked. Turn them on in your phone settings.",unsupported:"This device does not support push notifications.",connecting:"Turning on notifications…",ready:"OneSignal notifications are enabled.",error:"Could not connect to OneSignal. Close and reopen the app, then try again."};
 }
 
 function updateReminderUi(){
@@ -956,6 +956,7 @@ function withOneSignal(callback){
 
 async function enableOneSignal(){
   var words = reminderWords();
+  document.getElementById("reminderStatus").textContent = words.connecting;
   if(!("Notification" in window)){ document.getElementById("reminderStatus").textContent = words.unsupported; return false; }
   try{
     var allowed = await withOneSignal(async function(OneSignal){
@@ -963,6 +964,10 @@ async function enableOneSignal(){
       if(!OneSignal.Notifications.permission){ await OneSignal.Notifications.requestPermission(); }
       if(!OneSignal.Notifications.permission){ return false; }
       await OneSignal.User.PushSubscription.optIn();
+      for(var attempt=0;attempt<40;attempt++){
+        if(OneSignal.User.PushSubscription.optedIn && OneSignal.User.PushSubscription.id){ return true; }
+        await new Promise(function(resolve){ setTimeout(resolve,250); });
+      }
       return Boolean(OneSignal.User.PushSubscription.optedIn);
     });
     if(!allowed){ document.getElementById("reminderStatus").textContent = words.denied; return false; }
@@ -994,7 +999,14 @@ document.getElementById("saveReminder").addEventListener("click",async function(
   var message = document.getElementById("reminderReference").value.trim();
   var allowed = await enableOneSignal();
   if(!allowed){ return; }
-  await saveOneSignalReminder(time,message,true);
+  try{
+    await saveOneSignalReminder(time,message,true);
+  }
+  catch(error){
+    console.error("Could not save OneSignal reminder:",error);
+    document.getElementById("reminderStatus").textContent = reminderWords().error;
+    return;
+  }
   localStorage.setItem(REMINDER_KEY,JSON.stringify({enabled:true,time:time,message:message}));
   updateReminderUi();
 });
