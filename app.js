@@ -76,14 +76,23 @@ const page = `<!doctype html>
 <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
 <script>
 window.OneSignalDeferred = window.OneSignalDeferred || [];
+window.bibleOneSignalReady = new Promise(function(resolve,reject){
 OneSignalDeferred.push(async function(OneSignal){
-  await OneSignal.init({
-    appId:"657f4101-05f2-40e0-a0ba-5584cc2a185a",
-    serviceWorkerPath:"push/onesignal/OneSignalSDKWorker.js",
-    serviceWorkerParam:{scope:"/push/onesignal/"},
-    notifyButton:{enable:false},
-    persistNotification:true
-  });
+  try{
+    await OneSignal.init({
+      appId:"657f4101-05f2-40e0-a0ba-5584cc2a185a",
+      serviceWorkerPath:"push/onesignal/OneSignalSDKWorker.js",
+      serviceWorkerParam:{scope:"/push/onesignal/"},
+      notifyButton:{enable:false},
+      persistNotification:true
+    });
+    resolve(OneSignal);
+  }
+  catch(error){
+    console.error("OneSignal initialization failed:",error);
+    reject(error);
+  }
+});
 });
 </script>
 
@@ -945,13 +954,11 @@ function updateReminderUi(){
 }
 
 function withOneSignal(callback){
-  return new Promise(function(resolve,reject){
-    window.OneSignalDeferred = window.OneSignalDeferred || [];
-    OneSignalDeferred.push(async function(OneSignal){
-      try{ resolve(await callback(OneSignal)); }
-      catch(error){ reject(error); }
-    });
+  var timeout = new Promise(function(resolve,reject){
+    setTimeout(function(){ reject(new Error("OneSignal did not finish loading")); },15000);
   });
+  var ready = window.bibleOneSignalReady || Promise.reject(new Error("OneSignal was not initialized"));
+  return Promise.race([ready,timeout]).then(callback);
 }
 
 async function enableOneSignal(){
