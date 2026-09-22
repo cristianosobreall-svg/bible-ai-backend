@@ -11,6 +11,11 @@ const bibles = {
 };
 
 const staticAssets = new Map([
+  ["/push/onesignal/OneSignalSDKWorker.js",{
+    body:readFileSync(new URL("./OneSignalSDKWorker.js",import.meta.url)),
+    contentType:"text/javascript; charset=utf-8",
+    cacheControl:"no-cache"
+  }],
   ["/manifest.webmanifest",{
     body:readFileSync(new URL("./manifest.webmanifest",import.meta.url)),
     contentType:"application/manifest+json; charset=utf-8",
@@ -68,6 +73,19 @@ const page = `<!doctype html>
 <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
 <title>Bible Intelligence</title>
+<script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+<script>
+window.OneSignalDeferred = window.OneSignalDeferred || [];
+OneSignalDeferred.push(async function(OneSignal){
+  await OneSignal.init({
+    appId:"657f4101-05f2-40e0-a0ba-5584cc2a185a",
+    serviceWorkerPath:"push/onesignal/OneSignalSDKWorker.js",
+    serviceWorkerParam:{scope:"/push/onesignal/"},
+    notifyButton:{enable:false},
+    persistNotification:true
+  });
+});
+</script>
 
 <style>
 :root{
@@ -667,8 +685,6 @@ var FOLDERS_KEY = "bible-intelligence-folders-v1";
 var SERMONS_KEY = "bible-intelligence-sermons-v1";
 var ACTIVE_FOLDER_KEY = "bible-intelligence-active-folder-v1";
 var REMINDER_KEY = "bible-intelligence-reminder-v1";
-var REMINDER_LAST_KEY = "bible-intelligence-reminder-last-v1";
-var reminderTimer = null;
 var selectedVerse = null;
 var currentSermonId = null;
 
@@ -916,8 +932,8 @@ function getReminder(){ return readLocalJson(REMINDER_KEY,{enabled:false,time:"0
 
 function reminderWords(){
   return language.value === "es"
-    ? {off:"El recordatorio está apagado.",saved:"Recordatorio diario guardado para las ",denied:"Las notificaciones están bloqueadas. Actívalas en la configuración de tu teléfono.",unsupported:"Este dispositivo no permite notificaciones desde la web.",test:"Esta es tu prueba de recordatorio para leer la Biblia.",defaultMessage:"Es hora de leer la Biblia."}
-    : {off:"The reminder is turned off.",saved:"Daily reminder saved for ",denied:"Notifications are blocked. Turn them on in your phone settings.",unsupported:"This device does not support web notifications.",test:"This is your test reminder to read the Bible.",defaultMessage:"It is time to read the Bible."};
+    ? {off:"El recordatorio está apagado.",saved:"Recordatorio diario guardado para las ",denied:"Las notificaciones están bloqueadas. Actívalas en la configuración de tu teléfono.",unsupported:"Este dispositivo no permite notificaciones push.",ready:"Las notificaciones de OneSignal están activadas.",error:"No se pudo conectar con OneSignal. Inténtalo de nuevo."}
+    : {off:"The reminder is turned off.",saved:"Daily reminder saved for ",denied:"Notifications are blocked. Turn them on in your phone settings.",unsupported:"This device does not support push notifications.",ready:"OneSignal notifications are enabled.",error:"Could not connect to OneSignal. Please try again."};
 }
 
 function updateReminderUi(){
@@ -928,59 +944,73 @@ function updateReminderUi(){
   document.getElementById("reminderStatus").textContent = saved.enabled ? words.saved + (saved.time || "08:00") + "." : words.off;
 }
 
-async function showReadingNotification(message,isTest){
-  var words = reminderWords();
-  var body = message || (isTest ? words.test : words.defaultMessage);
-  if(!("Notification" in window)){ document.getElementById("reminderStatus").textContent = words.unsupported; return false; }
-  var permission = Notification.permission;
-  if(permission === "default"){ permission = await Notification.requestPermission(); }
-  if(permission !== "granted"){ document.getElementById("reminderStatus").textContent = words.denied; return false; }
-  try{
-    if("serviceWorker" in navigator){
-      var registration = await navigator.serviceWorker.ready;
-      await registration.showNotification("Bible Intelligence",{body:body,icon:"/icon-192.png",badge:"/icon-192.png",tag:"bible-reading-reminder",renotify:true,data:{url:"/"}});
-    } else { new Notification("Bible Intelligence",{body:body,icon:"/icon-192.png"}); }
-    return true;
-  } catch(error){ new Notification("Bible Intelligence",{body:body,icon:"/icon-192.png"}); return true; }
+function withOneSignal(callback){
+  return new Promise(function(resolve,reject){
+    window.OneSignalDeferred = window.OneSignalDeferred || [];
+    OneSignalDeferred.push(async function(OneSignal){
+      try{ resolve(await callback(OneSignal)); }
+      catch(error){ reject(error); }
+    });
+  });
 }
 
-function checkReadingReminder(){
-  var saved = getReminder();
-  if(!saved.enabled || !saved.time){ return; }
-  var now = new Date();
-  var hours = String(now.getHours()).padStart(2,"0");
-  var minutes = String(now.getMinutes()).padStart(2,"0");
-  var dayKey = now.getFullYear()+"-"+String(now.getMonth()+1).padStart(2,"0")+"-"+String(now.getDate()).padStart(2,"0");
-  if(hours+":"+minutes === saved.time && localStorage.getItem(REMINDER_LAST_KEY) !== dayKey){
-    localStorage.setItem(REMINDER_LAST_KEY,dayKey);
-    showReadingNotification(saved.message,false);
+async function enableOneSignal(){
+  var words = reminderWords();
+  if(!("Notification" in window)){ document.getElementById("reminderStatus").textContent = words.unsupported; return false; }
+  try{
+    var allowed = await withOneSignal(async function(OneSignal){
+      if(!OneSignal.Notifications.isPushSupported()){ return false; }
+      if(!OneSignal.Notifications.permission){ await OneSignal.Notifications.requestPermission(); }
+      if(!OneSignal.Notifications.permission){ return false; }
+      await OneSignal.User.PushSubscription.optIn();
+      return Boolean(OneSignal.User.PushSubscription.optedIn);
+    });
+    if(!allowed){ document.getElementById("reminderStatus").textContent = words.denied; return false; }
+    document.getElementById("reminderStatus").textContent = words.ready;
+    return true;
+  } catch(error){
+    console.error("OneSignal setup failed:",error);
+    document.getElementById("reminderStatus").textContent = words.error;
+    return false;
   }
+}
+
+async function saveOneSignalReminder(time,message,enabled){
+  return withOneSignal(async function(OneSignal){
+    var tags = {
+      bible_reminder_enabled:enabled ? "true" : "false",
+      bible_reminder_time:time || "08:00",
+      bible_reminder_timezone:Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+      bible_reminder_language:language.value === "es" ? "es" : "en",
+      bible_reminder_message:String(message || "").slice(0,200)
+    };
+    await OneSignal.User.addTags(tags);
+    return true;
+  });
 }
 
 document.getElementById("saveReminder").addEventListener("click",async function(){
   var time = document.getElementById("reminderTime").value || "08:00";
   var message = document.getElementById("reminderReference").value.trim();
-  var allowed = await showReadingNotification(message,true);
+  var allowed = await enableOneSignal();
   if(!allowed){ return; }
+  await saveOneSignalReminder(time,message,true);
   localStorage.setItem(REMINDER_KEY,JSON.stringify({enabled:true,time:time,message:message}));
-  localStorage.removeItem(REMINDER_LAST_KEY);
   updateReminderUi();
 });
 
-document.getElementById("disableReminder").addEventListener("click",function(){
+document.getElementById("disableReminder").addEventListener("click",async function(){
   var saved = getReminder(); saved.enabled = false;
+  try{ await saveOneSignalReminder(saved.time,saved.message,false); }catch(error){ console.error(error); }
   localStorage.setItem(REMINDER_KEY,JSON.stringify(saved));
   updateReminderUi();
 });
 
-document.getElementById("testReminder").addEventListener("click",function(){
-  showReadingNotification(document.getElementById("reminderReference").value.trim(),true);
+document.getElementById("testReminder").addEventListener("click",async function(){
+  await enableOneSignal();
 });
 
 updateReminderUi();
-checkReadingReminder();
-reminderTimer = setInterval(checkReadingReminder,30000);
-document.addEventListener("visibilitychange",function(){ if(!document.hidden){ checkReadingReminder(); } });
 
 function studyWords(){
   return language.value === "es"
