@@ -19,6 +19,7 @@ test("health reports the complete local Bible",async function(){
   assert.equal(data.spanishBibleLoaded,true);
   assert.equal(data.spanishBibleBooks,66);
   assert.equal(data.aiConfigured,false);
+  assert.equal(data.oneSignalConfigured,false);
 });
 
 
@@ -60,6 +61,50 @@ test("connects reminders to the OneSignal web push SDK",async function(){
   assert.match(html,/serviceWorkerPath:"push\/onesignal\/OneSignalSDKWorker\.js"/);
   assert.match(html,/OneSignal\.User\.PushSubscription\.optIn/);
   assert.match(html,/bible_reminder_timezone/);
+});
+
+
+test("sends an immediate reminder through OneSignal",async function(){
+  const originalFetch = globalThis.fetch;
+  const subscriptionId = "12345678-1234-1234-1234-123456789abc";
+
+  globalThis.fetch = async function(url,options){
+    assert.equal(url,"https://api.onesignal.com/notifications");
+    assert.equal(options.method,"POST");
+    assert.equal(options.headers.authorization,"Key test-rest-api-key");
+
+    const body = JSON.parse(options.body);
+    assert.equal(body.app_id,"657f4101-05f2-40e0-a0ba-5584cc2a185a");
+    assert.deepEqual(body.include_subscription_ids,[subscriptionId]);
+    assert.equal(body.contents.en,"Read Joshua chapter 1");
+    assert.equal(body.send_after,undefined);
+
+    return new Response(JSON.stringify({id:"abcdef12-1234-1234-1234-123456789abc"}),{
+      status:200,
+      headers:{"content-type":"application/json"}
+    });
+  };
+
+  try{
+    const response = await request("/api/reminder",{
+      method:"POST",
+      headers:{"content-type":"application/json"},
+      body:JSON.stringify({
+        test:true,
+        subscriptionId:subscriptionId,
+        message:"Read Joshua chapter 1",
+        language:"en"
+      })
+    },{ONESIGNAL_REST_API_KEY:"test-rest-api-key"});
+    const data = await response.json();
+
+    assert.equal(response.status,200);
+    assert.equal(data.ok,true);
+    assert.deepEqual(data.notificationIds,["abcdef12-1234-1234-1234-123456789abc"]);
+  }
+  finally{
+    globalThis.fetch = originalFetch;
+  }
 });
 
 
