@@ -10,6 +10,8 @@ const bibles = {
   )
 };
 
+const ONESIGNAL_APP_ID = "657f4101-05f2-40e0-a0ba-5584cc2a185a";
+
 const staticAssets = new Map([
   ["/push/onesignal/OneSignalSDKWorker.js",{
     body:readFileSync(new URL("./OneSignalSDKWorker.js",import.meta.url)),
@@ -941,8 +943,8 @@ function getReminder(){ return readLocalJson(REMINDER_KEY,{enabled:false,time:"0
 
 function reminderWords(){
   return language.value === "es"
-    ? {off:"El recordatorio está apagado.",saved:"Recordatorio diario guardado para las ",denied:"Las notificaciones están bloqueadas. Actívalas en la configuración de tu teléfono.",unsupported:"Este dispositivo no permite notificaciones push.",connecting:"Activando las notificaciones…",ready:"Las notificaciones de OneSignal están activadas.",error:"No se pudo conectar con OneSignal. Cierra y abre la app e inténtalo otra vez."}
-    : {off:"The reminder is turned off.",saved:"Daily reminder saved for ",denied:"Notifications are blocked. Turn them on in your phone settings.",unsupported:"This device does not support push notifications.",connecting:"Turning on notifications…",ready:"OneSignal notifications are enabled.",error:"Could not connect to OneSignal. Close and reopen the app, then try again."};
+    ? {off:"El recordatorio está apagado.",saved:"Recordatorio diario programado para las ",denied:"Las notificaciones están bloqueadas. Actívalas en la configuración de tu teléfono.",unsupported:"Este dispositivo no permite notificaciones push.",connecting:"Activando las notificaciones…",ready:"Las notificaciones de OneSignal están activadas.",testSent:"La notificación de prueba fue enviada.",serverError:"No se pudo programar el recordatorio. Inténtalo otra vez.",error:"No se pudo conectar con OneSignal. Cierra y abre la app e inténtalo otra vez."}
+    : {off:"The reminder is turned off.",saved:"Daily reminder scheduled for ",denied:"Notifications are blocked. Turn them on in your phone settings.",unsupported:"This device does not support push notifications.",connecting:"Turning on notifications…",ready:"OneSignal notifications are enabled.",testSent:"The test notification was sent.",serverError:"The reminder could not be scheduled. Please try again.",error:"Could not connect to OneSignal. Close and reopen the app, then try again."};
 }
 
 function updateReminderUi(){
@@ -1001,6 +1003,31 @@ async function saveOneSignalReminder(time,message,enabled){
   });
 }
 
+function reminderSendTimes(time,count){
+  var parts = String(time || "08:00").split(":");
+  var hour = Number(parts[0]);
+  var minute = Number(parts[1]);
+  var now = new Date();
+  var first = new Date(now.getFullYear(),now.getMonth(),now.getDate(),hour,minute,0,0);
+  if(first.getTime() <= now.getTime() + 30000){ first.setDate(first.getDate() + 1); }
+  var times = [];
+  for(var day=0;day<count;day++){
+    times.push(new Date(first.getFullYear(),first.getMonth(),first.getDate() + day,hour,minute,0,0).toISOString());
+  }
+  return times;
+}
+
+async function sendReminderRequest(options){
+  var response = await fetch("/api/reminder",{
+    method:"POST",
+    headers:{"content-type":"application/json"},
+    body:JSON.stringify(options)
+  });
+  var data = await response.json().catch(function(){ return {}; });
+  if(!response.ok){ throw new Error(data.error || "Reminder request failed"); }
+  return data;
+}
+
 document.getElementById("saveReminder").addEventListener("click",async function(){
   var time = document.getElementById("reminderTime").value || "08:00";
   var message = document.getElementById("reminderReference").value.trim();
@@ -1008,25 +1035,50 @@ document.getElementById("saveReminder").addEventListener("click",async function(
   if(!allowed){ return; }
   try{
     await saveOneSignalReminder(time,message,true);
+    var pushInfo = await withOneSignal(function(OneSignal){
+      return {subscriptionId:OneSignal.User.PushSubscription.id};
+    });
+    var previous = getReminder();
+    var scheduled = await sendReminderRequest({
+      enabled:true,
+      subscriptionId:pushInfo.subscriptionId,
+      sendAt:reminderSendTimes(time,28),
+      cancelIds:Array.isArray(previous.notificationIds) ? previous.notificationIds : [],
+      message:message,
+      language:language.value
+    });
+    localStorage.setItem(REMINDER_KEY,JSON.stringify({enabled:true,time:time,message:message,notificationIds:scheduled.notificationIds || [],scheduledAt:new Date().toISOString()}));
   }
   catch(error){
-    console.error("Could not save OneSignal reminder:",error);
-    document.getElementById("reminderStatus").textContent = reminderWords().error;
+    console.error("Could not schedule OneSignal reminder:",error);
+    document.getElementById("reminderStatus").textContent = reminderWords().serverError;
     return;
   }
-  localStorage.setItem(REMINDER_KEY,JSON.stringify({enabled:true,time:time,message:message}));
   updateReminderUi();
 });
 
 document.getElementById("disableReminder").addEventListener("click",async function(){
   var saved = getReminder(); saved.enabled = false;
   try{ await saveOneSignalReminder(saved.time,saved.message,false); }catch(error){ console.error(error); }
+  try{
+    await sendReminderRequest({enabled:false,cancelIds:Array.isArray(saved.notificationIds) ? saved.notificationIds : []});
+    saved.notificationIds = [];
+  }catch(error){ console.error(error); }
   localStorage.setItem(REMINDER_KEY,JSON.stringify(saved));
   updateReminderUi();
 });
 
 document.getElementById("testReminder").addEventListener("click",async function(){
-  await enableOneSignal();
+  var allowed = await enableOneSignal();
+  if(!allowed){ return; }
+  try{
+    var info = await withOneSignal(function(OneSignal){ return {subscriptionId:OneSignal.User.PushSubscription.id}; });
+    await sendReminderRequest({test:true,subscriptionId:info.subscriptionId,message:document.getElementById("reminderReference").value.trim(),language:language.value});
+    document.getElementById("reminderStatus").textContent = reminderWords().testSent;
+  }catch(error){
+    console.error(error);
+    document.getElementById("reminderStatus").textContent = reminderWords().serverError;
+  }
 });
 
 updateReminderUi();
@@ -2249,6 +2301,100 @@ async function handleSermon(request,env){
 }
 
 
+async function oneSignalRequest(env,path,options={}){
+  if(!env.ONESIGNAL_REST_API_KEY){
+    throw new Error("OneSignal sending key is not configured");
+  }
+  const response = await fetch(
+    "https://api.onesignal.com" + path,
+    {
+      ...options,
+      headers:{
+        "authorization":"Key " + env.ONESIGNAL_REST_API_KEY,
+        "content-type":"application/json",
+        ...(options.headers || {})
+      }
+    }
+  );
+  const data = await response.json().catch(function(){ return {}; });
+  if(!response.ok){
+    throw new Error(data?.errors?.join?.("; ") || data?.error || "OneSignal request failed");
+  }
+  return data;
+}
+
+
+async function cancelOneSignalMessages(env,ids){
+  for(const id of ids.slice(0,40)){
+    if(!/^[0-9a-f-]{20,50}$/i.test(id)){ continue; }
+    try{
+      await oneSignalRequest(env,"/notifications/" + encodeURIComponent(id) + "?app_id=" + encodeURIComponent(ONESIGNAL_APP_ID),{method:"DELETE"});
+    }
+    catch(error){
+      console.error("Could not cancel OneSignal message",id,error);
+    }
+  }
+}
+
+
+async function handleReminder(request,env){
+  let body;
+  try{ body = await request.json(); }
+  catch{ return json({error:"Invalid request"},400); }
+
+  const cancelIds = Array.isArray(body?.cancelIds)
+    ? body.cancelIds.map(String).slice(0,40)
+    : [];
+  await cancelOneSignalMessages(env,cancelIds);
+
+  if(body?.enabled === false){ return json({ok:true,notificationIds:[]}); }
+
+  const subscriptionId = String(body?.subscriptionId || "").trim();
+  if(!/^[0-9a-f-]{20,80}$/i.test(subscriptionId)){
+    return json({error:"A valid push subscription is required"},400);
+  }
+
+  const language = body?.language === "es" ? "es" : "en";
+  const fallback = language === "es" ? "Es hora de leer la Biblia." : "It is time to read the Bible.";
+  const message = String(body?.message || fallback).trim().slice(0,200) || fallback;
+
+  const createMessage = async function(sendAfter){
+    const payload = {
+      app_id:ONESIGNAL_APP_ID,
+      target_channel:"push",
+      include_subscription_ids:[subscriptionId],
+      headings:{en:"Bible Intelligence"},
+      contents:{en:message},
+      url:"https://bible-ai-backend-p6ye.onrender.com/"
+    };
+    if(sendAfter){ payload.send_after = sendAfter; }
+    return oneSignalRequest(env,"/notifications",{method:"POST",body:JSON.stringify(payload)});
+  };
+
+  if(body?.test === true){
+    const sent = await createMessage();
+    return json({ok:true,notificationIds:sent.id ? [sent.id] : []});
+  }
+
+  const now = Date.now();
+  const max = now + 30 * 24 * 60 * 60 * 1000;
+  const sendAt = Array.isArray(body?.sendAt)
+    ? body.sendAt.map(String).filter(function(value){
+        const timestamp = Date.parse(value);
+        return Number.isFinite(timestamp) && timestamp > now + 15000 && timestamp < max;
+      }).slice(0,28)
+    : [];
+  if(!sendAt.length){ return json({error:"At least one future reminder time is required"},400); }
+
+  const notificationIds = [];
+  for(let index=0;index<sendAt.length;index+=4){
+    const batch = await Promise.all(sendAt.slice(index,index + 4).map(createMessage));
+    for(const result of batch){ if(result.id){ notificationIds.push(result.id); } }
+  }
+  return json({ok:true,notificationIds:notificationIds});
+}
+
+
 export default {
 
   async fetch(request,env,ctx){
@@ -2313,7 +2459,9 @@ export default {
           spanishBibleLoaded:true,
           spanishBibleBooks:Object.keys(bibles.es.books).length,
           aiConfigured:
-            Boolean(env.OPENAI_API_KEY)
+            Boolean(env.OPENAI_API_KEY),
+          oneSignalConfigured:
+            Boolean(env.ONESIGNAL_REST_API_KEY)
         });
 
       }
@@ -2398,6 +2546,13 @@ export default {
         url.pathname === "/api/sermon"
       ){
         return await handleSermon(request,env);
+      }
+
+      if(
+        request.method === "POST" &&
+        url.pathname === "/api/reminder"
+      ){
+        return await handleReminder(request,env);
       }
 
 
